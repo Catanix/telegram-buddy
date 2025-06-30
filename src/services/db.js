@@ -1,6 +1,5 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-import { convertToISODate } from '../utils/dateUtils.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -30,18 +29,12 @@ export async function initDB() {
                 chat_id INTEGER,
                 text TEXT,
                 remind_at TEXT,
-                created_at TEXT
+                created_at TEXT,
+                notified INTEGER DEFAULT 0
             );
         `);
 
-        // ✅ Проверка и добавление колонки notified, если её нет
-        const columns = await db.all(`PRAGMA table_info(tasks);`);
-        const hasNotified = columns.some(col => col.name === 'notified');
-        if (!hasNotified) {
-            await db.exec('ALTER TABLE tasks ADD COLUMN notified INTEGER DEFAULT 0;');
-        }
-
-        // ✅ Миграция дат в ISO
+        // ✅ Миграция устаревших дат (опционально)
         await migrateTaskDates();
 
     } catch (error) {
@@ -51,7 +44,7 @@ export async function initDB() {
 }
 
 /**
- * Migrate existing tasks with human-readable dates to ISO format
+ * Миграция устаревших дат, если они не в ISO
  */
 async function migrateTaskDates() {
     try {
@@ -61,18 +54,16 @@ async function migrateTaskDates() {
         let migratedCount = 0;
 
         for (const task of tasks) {
-            const isIsoDate = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(task.remind_at);
-            if (!isIsoDate) {
-                const isoDate = convertToISODate(task.remind_at);
-                if (isoDate) {
-                    await db.run(
-                        'UPDATE tasks SET remind_at = ? WHERE id = ?',
-                        [isoDate, task.id]
-                    );
-                    console.log(`✅ Migrated task ${task.id}: "${task.remind_at}" → "${isoDate}"`);
+            const isValidISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(task.remind_at);
+            if (!isValidISO) {
+                const parsed = new Date(task.remind_at);
+                if (!isNaN(parsed.getTime())) {
+                    const iso = parsed.toISOString();
+                    await db.run('UPDATE tasks SET remind_at = ? WHERE id = ?', [iso, task.id]);
+                    console.log(`✅ Migrated task ${task.id}: "${task.remind_at}" → "${iso}"`);
                     migratedCount++;
                 } else {
-                    console.warn(`⚠️ Could not convert task ${task.id}: "${task.remind_at}"`);
+                    console.warn(`⚠️ Skipped task ${task.id}: could not parse "${task.remind_at}"`);
                 }
             }
         }

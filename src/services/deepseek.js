@@ -14,18 +14,19 @@ export async function askDeepSeek(transcript) {
     const timezoneSign = timezoneOffsetHours >= 0 ? '+' : '-';
     const timezoneOffsetFormatted = `UTC${timezoneSign}${Math.abs(timezoneOffsetHours)}`;
 
-    const prompt = `Сегодня ${nowFormatted} (местное время, часовой пояс ${timezoneOffsetFormatted}). Проанализируй: "${transcript}". Раздели на:\n1. Задача\n2. Дата. \n2 
-    Если ты видишь что задача написана некорректно, чуть чуть исправь ее, дополни, поправь грамматические ошибки и опечатки,
-    не меняя суть, но не добавляй ничего серьезного от себя. Не нужно никаких уточнений и лишних фраз, помни ты бот работающий
-    с напоминаниями, ответ должен быть четкий: без лишних мыслей, догадок и предложений, мыслей и т.д. это видит пользователь бота,
-    он не должен знать что взаимодействует с моделью.
+    const prompt = `
+Сегодня ${nowFormatted} (${timezoneOffsetFormatted}).
+Проанализируй следующее сообщение: "${transcript}"
 
-    ВАЖНО: если пользователь указывает время без явного указания часового пояса (например, "в 16 часов"), считай что он имеет в виду 
-    своё локальное время, а не UTC. Тебе нужно преобразовать это время в UTC для сохранения. Например, если пользователь говорит 
-    "в 16 часов" и находится в часовом поясе ${timezoneOffsetFormatted}, то это время нужно сохранить как "${16 - timezoneOffsetHours}:00 UTC" (16:00 - ${timezoneOffsetHours} часов = ${16 - timezoneOffsetHours}:00 UTC). 
-    Возвращай время в формате, который явно указывает что это UTC время, например "30.06.2025 11:03 UTC" или с явным указанием Z в ISO формате.
+Ответь строго в JSON формате:
+{
+  "task": "текст задачи",
+  "time": "дата и время в UTC в ISO формате, например 2025-06-30T11:03:00Z"
+}
 
-    Верни ответ как JSON формата { task: Задача, time: Дата }`;
+Если время указано без часового пояса (например, "в 16:00"), считай, что оно в местном времени (${timezoneOffsetFormatted}),
+и переведи его в UTC. Используй только ISO 8601 формат с Z в конце.
+`;
 
     try {
         const response = await axios.post(
@@ -41,14 +42,25 @@ export async function askDeepSeek(transcript) {
             }
         );
 
-        let content = response.data.choices[0].message.content;
-
-        content = content.trim();
+        let content = response.data.choices[0].message.content.trim();
         if (content.startsWith('```')) {
             content = content.replace(/```(?:json)?\s*/i, '').replace(/```$/, '').trim();
         }
 
         const parsed = JSON.parse(content);
+
+        // Проверка task и ISO даты
+        if (!parsed.task || !parsed.time) {
+            console.warn('⚠️ Модель вернула неполный ответ:', parsed);
+            return {};
+        }
+
+        const isISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?Z$/.test(parsed.time);
+        if (!isISO) {
+            console.warn('⚠️ Неверный формат времени:', parsed.time);
+            return {};
+        }
+
         return parsed;
 
     } catch (error) {

@@ -1,23 +1,12 @@
 import { db } from '../services/db.js';
-import { convertToISODate } from '../utils/dateUtils.js';
+import {isValidDate} from "../utils/dateUtils.js";
 
 export async function insertTask(chatId, text, remindAt) {
-    const isoDate = convertToISODate(remindAt);
-
-    if (!isoDate) {
-        console.error(`Failed to parse date: ${remindAt}`);
-        throw new Error(`Invalid date format: ${remindAt}`);
-    }
-
-    // Verify that the date is in the expected format for the database
-    const parsedDate = new Date(isoDate);
-    if (parsedDate.toISOString() !== isoDate) {
-        console.warn(`[TaskModel] Внимание: ISO представление даты (${parsedDate.toISOString()}) отличается от преобразованной строки (${isoDate})`);
-    }
-
+    const date = new Date(remindAt);
+    if (!isValidDate(date)) throw new Error(`Invalid date format: ${remindAt}`);
     return db.run(
         'INSERT INTO tasks (chat_id, text, remind_at, created_at, notified) VALUES (?, ?, ?, ?, ?)',
-        [chatId, text, isoDate, new Date().toISOString(), 0]
+        [chatId, text, date.toISOString(), new Date().toISOString(), 0]
     );
 }
 
