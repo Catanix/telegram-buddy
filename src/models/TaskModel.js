@@ -39,8 +39,9 @@ export async function getCurrentMinuteTasks() {
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
 
-    const startOfMinute = new Date(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0);
-    const endOfMinute = new Date(currentYear, currentMonth, currentDay, currentHour, currentMinute, 59, 999);
+    // ✅ Используем UTC, чтобы избежать смещения
+    const startOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0));
+    const endOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 59, 999));
 
     const startISO = startOfMinute.toISOString();
     const endISO = endOfMinute.toISOString();
@@ -128,7 +129,8 @@ export async function getOverdueTasks() {
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
 
-    const startOfMinute = new Date(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0);
+    // ✅ UTC
+    const startOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0));
     const startISO = startOfMinute.toISOString();
 
     const allTasks = await db.all('SELECT * FROM tasks WHERE notified = 0');
