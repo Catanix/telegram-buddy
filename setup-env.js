@@ -17,7 +17,7 @@ const prompt = (question, defaultValue) => {
 };
 
 async function setupEnv() {
-  console.log('🔧 Setting up environment variables for Catan Home Assistant');
+  console.log('🔧 Setting up environment variables for telegram buddy...');
 
   // Check if .env.example exists
   const envExamplePath = path.resolve('.env.example');
