@@ -65,7 +65,7 @@ node index.js
 
 2. Запустите контейнер с помощью Docker Compose:
    ```
-   docker-compose up -d
+   docker compose up -d
    ```
 
    > **Примечание**: Docker Compose автоматически создаст файл `.env` внутри контейнера на основе переменных окружения, 
@@ -73,24 +73,24 @@ node index.js
 
 3. Проверьте логи:
    ```
-   docker-compose logs -f
+   docker compose logs -f
    ```
 
 #### Управление контейнером
 
 - Остановка контейнера:
   ```
-  docker-compose down
+  docker compose down
   ```
 
 - Перезапуск контейнера:
   ```
-  docker-compose restart
+  docker compose restart
   ```
 
 - Обновление после изменения кода:
   ```
-  docker-compose up -d --build
+  docker compose up -d --build
   ```
 
 #### Хранение данных
