@@ -1,6 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { getCurrentMinuteTasks, markTaskAsNotified, cleanupOldTasks, getOverdueTasks, getPendingTasks } from '../models/TaskModel.js';
+import {
+    getCurrentMinuteTasks,
+    markTaskAsNotified,
+    cleanupOldTasks,
+    getNextTaskTime
+} from '../models/TaskModel.js';
 import { formatDateForDisplay } from '../utils/dateUtils.js';
 
 export async function startScheduler(bot) {
@@ -14,7 +19,7 @@ export async function startScheduler(bot) {
         } catch (err) {
             console.error('[Scheduler Error]', err);
         }
-    }, 10 * 1000); // 10 секунд
+    }, 10 * 1000); // каждые 10 секунд
 }
 
 async function checkDueTasks(bot) {
@@ -35,11 +40,11 @@ async function checkDueTasks(bot) {
                     { source: fs.readFileSync(imagePath) },
                     { caption: formattedMessage }
                 );
-                console.log(`Напоминание отправлено для задачи ${task.id}`);
+                console.log(`✅ Напоминание отправлено для задачи ${task.id}`);
 
                 await markTaskAsNotified(task.id);
             } catch (sendError) {
-                console.error(`Ошибка при отправке напоминания для задачи ${task.id}:`, sendError);
+                console.error(`❌ Ошибка при отправке напоминания для задачи ${task.id}:`, sendError);
             }
         }
     } catch (err) {
@@ -49,7 +54,7 @@ async function checkDueTasks(bot) {
 
 async function checkExistingTasks(bot) {
     try {
-        console.log('Проверка существующих задач при запуске бота');
+        console.log('🔍 Проверка существующих задач при запуске бота');
 
         await cleanupOldTasks();
 
@@ -69,11 +74,11 @@ async function checkExistingTasks(bot) {
                     { source: fs.readFileSync(imagePath) },
                     { caption: formattedMessage }
                 );
-                console.log(`Напоминание отправлено для задачи ${task.id}`);
+                console.log(`✅ Напоминание отправлено для задачи ${task.id}`);
 
                 await markTaskAsNotified(task.id);
             } catch (sendError) {
-                console.error(`Ошибка при отправке напоминания для задачи ${task.id}:`, sendError);
+                console.error(`❌ Ошибка при отправке напоминания для задачи ${task.id}:`, sendError);
             }
         }
     } catch (err) {
@@ -82,20 +87,16 @@ async function checkExistingTasks(bot) {
 }
 
 async function logNextTaskTime() {
-    const tasks = await getPendingTasks();
-    if (!tasks.length) {
+    const next = await getNextTaskTime();
+    if (!next) {
         console.log('⏳ Нет предстоящих задач');
         return;
     }
 
     const now = new Date();
-    const nextTask = tasks.reduce((min, t) =>
-        new Date(t.remind_at) < new Date(min.remind_at) ? t : min
-    );
-
-    const diffMs = new Date(nextTask.remind_at) - now;
+    const diffMs = new Date(next) - now;
     const diffMin = Math.floor(diffMs / 60000);
     const diffSec = Math.floor((diffMs % 60000) / 1000);
 
-    console.log(`⏳ До следующей задачи осталось: ${diffMin} мин ${diffSec} сек (${formatDateForDisplay(nextTask.remind_at)})`);
+    console.log(`⏳ До следующей задачи осталось: ${diffMin} мин ${diffSec} сек (${formatDateForDisplay(next)})`);
 }

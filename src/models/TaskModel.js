@@ -1,5 +1,5 @@
 import { db } from '../services/db.js';
-import { isValidDate } from "../utils/dateUtils.js";
+import { isValidDate } from '../utils/dateUtils.js';
 
 /**
  * Вставка новой задачи
@@ -31,57 +31,40 @@ export async function getPendingTasks() {
  */
 export async function getCurrentMinuteTasks() {
     const now = new Date();
-    console.log(`[TaskModel] Поиск задач для текущей минуты. Локальное время: ${now.toISOString()}`);
-
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     const currentDay = now.getDate();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
 
-    // ✅ Используем UTC, чтобы избежать смещения
-    const startOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0));
-    const endOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 59, 999));
+    const startOfMinute = new Date(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0);
+    const endOfMinute = new Date(currentYear, currentMonth, currentDay, currentHour, currentMinute, 59, 999);
 
     const startISO = startOfMinute.toISOString();
     const endISO = endOfMinute.toISOString();
 
-    const allTasks = await db.all('SELECT * FROM tasks WHERE notified = 0');
-
-    let tasks = await db.all(
+    const tasks = await db.all(
         'SELECT * FROM tasks WHERE remind_at >= ? AND remind_at <= ? AND notified = 0',
         [startISO, endISO]
     );
 
-    // Обход возможных ошибок часового пояса
-    if (tasks.length === 0 && allTasks.length > 0) {
-        const tasksToCheck = [];
-
-        for (const task of allTasks) {
-            const taskDate = new Date(task.remind_at);
-
-            if (
-                taskDate.getFullYear() === currentYear &&
-                taskDate.getMonth() === currentMonth &&
-                taskDate.getDate() === currentDay &&
-                taskDate.getMinutes() === currentMinute
-            ) {
-                const hourDiff = Math.abs(taskDate.getHours() - currentHour);
-                if (hourDiff <= 2) {
-                    console.log(`[TaskModel] Подозрение на смещение по времени у задачи ${task.id}`);
-                    tasksToCheck.push(task);
-                }
-            }
-        }
-
-        if (tasksToCheck.length > 0) {
-            console.log(`[TaskModel] Найдено ${tasksToCheck.length} задач с возможным смещением времени`);
-            tasks = tasksToCheck;
-        }
-    }
-
     console.log(`[TaskModel] Найдено ${tasks.length} задач на текущую минуту`);
     return tasks;
+}
+
+/**
+ * Получает список просроченных задач
+ */
+export async function getOverdueTasks() {
+    const nowISO = new Date().toISOString();
+
+    const overdueTasks = await db.all(
+        'SELECT * FROM tasks WHERE remind_at < ? AND notified = 0',
+        [nowISO]
+    );
+
+    console.log(`[TaskModel] Найдено ${overdueTasks.length} просроченных задач`);
+    return overdueTasks;
 }
 
 /**
@@ -117,59 +100,6 @@ export async function deleteTask(taskId) {
 }
 
 /**
- * Получает список просроченных задач
- */
-export async function getOverdueTasks() {
-    const now = new Date();
-    console.log(`[TaskModel] Поиск просроченных задач. Локальное время: ${now.toISOString()}`);
-
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    const currentDay = now.getDate();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-
-    // ✅ UTC
-    const startOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0));
-    const startISO = startOfMinute.toISOString();
-
-    const allTasks = await db.all('SELECT * FROM tasks WHERE notified = 0');
-
-    let overdueTasks = await db.all(
-        'SELECT * FROM tasks WHERE remind_at < ? AND notified = 0',
-        [startISO]
-    );
-
-    if (overdueTasks.length === 0 && allTasks.length > 0) {
-        const tasksToCheck = [];
-
-        for (const task of allTasks) {
-            const taskDate = new Date(task.remind_at);
-
-            if (
-                taskDate.getFullYear() === currentYear &&
-                taskDate.getMonth() === currentMonth &&
-                taskDate.getDate() === currentDay
-            ) {
-                const hourDiff = taskDate.getHours() - currentHour;
-                if (hourDiff > 0 && hourDiff <= 2) {
-                    console.log(`[TaskModel] Подозрение на смещение времени у задачи ${task.id}`);
-                    tasksToCheck.push(task);
-                }
-            }
-        }
-
-        if (tasksToCheck.length > 0) {
-            console.log(`[TaskModel] Найдено ${tasksToCheck.length} задач с возможным смещением`);
-            overdueTasks = tasksToCheck;
-        }
-    }
-
-    console.log(`[TaskModel] Найдено ${overdueTasks.length} просроченных задач`);
-    return overdueTasks;
-}
-
-/**
  * Удаляет уведомлённые задачи, срок которых прошёл
  */
 export async function cleanupOldTasks() {
@@ -190,4 +120,16 @@ export async function cleanupOldTasks() {
     }
 
     return { changes: 0 };
+}
+
+/**
+ * Возвращает дату ближайшей ожидающей задачи
+ */
+export async function getNextTaskTime() {
+    const nowISO = new Date().toISOString();
+    const row = await db.get(
+        'SELECT remind_at FROM tasks WHERE remind_at > ? AND notified = 0 ORDER BY remind_at ASC LIMIT 1',
+        [nowISO]
+    );
+    return row?.remind_at ? new Date(row.remind_at) : null;
 }
