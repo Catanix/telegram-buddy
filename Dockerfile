@@ -2,13 +2,12 @@ FROM node:18-slim
 
 WORKDIR /app
 
-# Установим git
-RUN apt-get update && apt-get install -y git
+RUN apt-get update && apt-get install -y git tzdata
 
-# Скопируем локальный .git проект (если ты собираешь из папки)
+# Копируем файлы проекта
 COPY . .
 
-# Установим зависимости (после git pull — с актуальными package.json)
+# Устанавливаем зависимости
 RUN npm install
 
 # Создаём tmp директорию

@@ -19,17 +19,15 @@ services:
       NODE_ENV: production
       ORT_LOG_SEVERITY_LEVEL: 3
     command: >
-      sh -c "
+      sh -c '
         mkdir -p /app/data/db /app/tmp;
-
-        echo \"# Generated .env file - DO NOT EDIT MANUALLY\" > /app/.env;
-        echo \"TELEGRAM_TOKEN=${TELEGRAM_TOKEN}\" >> /app/.env;
-        echo \"AUTHORIZED_USERNAME=${AUTHORIZED_USERNAME}\" >> /app/.env;
-        echo \"DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}\" >> /app/.env;
-        echo \"NODE_ENV=${NODE_ENV}\" >> /app/.env;
-
-        npm start
-      "
+        echo "# Generated .env file - DO NOT EDIT MANUALLY" > /app/.env;
+        echo "TELEGRAM_TOKEN=$TELEGRAM_TOKEN" >> /app/.env;
+        echo "AUTHORIZED_USERNAME=$AUTHORIZED_USERNAME" >> /app/.env;
+        echo "DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY" >> /app/.env;
+        echo "NODE_ENV=$NODE_ENV" >> /app/.env;
+        exec npm start
+      '
 
 volumes:
   db-data:
