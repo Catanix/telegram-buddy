@@ -6,9 +6,9 @@ import { convertToWav } from '../../utils/convertToWav.js';
 import { transcribeOffline } from '../../utils/transcribeOffline.js';
 import { askDeepSeek } from '../../services/deepseek.js';
 import { insertTask } from '../../models/TaskModel.js';
-import { formatDateForCIS, convertToISODate } from '../../utils/dateParser.js';
+import { formatDateForDisplay, convertToISODate } from '../../utils/dateUtils.js';
 
-const pendingTasks = new Map(); // временное хранилище задач по ID
+const pendingTasks = new Map();
 
 export async function voiceHandler(ctx) {
     const fileId = ctx.message.voice.file_id;
@@ -28,7 +28,6 @@ export async function voiceHandler(ctx) {
         const transcript = await transcribeOffline(wavPath);
         if (!transcript) {
             const errorMsg = await ctx.reply('🤔 Не удалось распознать речь.');
-            // Удаляем сообщение об ошибке через 5 секунд
             setTimeout(async () => {
                 try {
                     await ctx.deleteMessage(errorMsg.message_id);
@@ -42,7 +41,6 @@ export async function voiceHandler(ctx) {
         const { task, time } = await askDeepSeek(transcript);
         if (!task || !time) {
             const errorMsg = await ctx.reply('❌ Не удалось извлечь задачу и время из текста.');
-            // Удаляем сообщение об ошибке через 5 секунд
             setTimeout(async () => {
                 try {
                     await ctx.deleteMessage(errorMsg.message_id);
@@ -57,7 +55,7 @@ export async function voiceHandler(ctx) {
         pendingTasks.set(taskId, { task, time });
         const imagePath = path.resolve('src/assets/images/yukiTask.png');
         const isoTime = convertToISODate(time);
-        const formattedTime = formatDateForCIS(isoTime);
+        const formattedTime = formatDateForDisplay(isoTime);
         await ctx.replyWithPhoto(
             { source: fs.readFileSync(imagePath) },
             {
@@ -76,7 +74,6 @@ export async function voiceHandler(ctx) {
     } catch (err) {
         console.error('[VoiceHandler Error]', err);
         const errorMsg = await ctx.reply('⚠️ Ошибка при обработке голосового сообщения.');
-        // Удаляем сообщение об ошибке через 5 секунд
         setTimeout(async () => {
             try {
                 await ctx.deleteMessage(errorMsg.message_id);
@@ -106,21 +103,16 @@ export function setupConfirmHandler(bot) {
             const messageId = ctx.callbackQuery.message.message_id;
 
             try {
-                // Сохраняем задачу в базу данных
                 await insertTask(chatId, task, time);
-
-                // Удаляем сообщение с подтверждением
                 await ctx.deleteMessage(messageId);
 
-                // Convert the date to ISO format before formatting it for display
                 const isoDate = convertToISODate(time);
-                await ctx.reply(`✅ Сохранено!\n\n📋 ${task}\n🕒 ${formatDateForCIS(isoDate)}`);
+                await ctx.reply(`✅ Сохранено!\n\n📋 ${task}\n🕒 ${formatDateForDisplay(isoDate)}`);
 
                 await ctx.answerCbQuery();
             } catch (error) {
                 console.error('[Task Save Error]', error);
 
-                // Удаляем сообщение с подтверждением
                 try {
                     await ctx.deleteMessage(messageId);
                 } catch (deleteError) {
@@ -128,7 +120,6 @@ export function setupConfirmHandler(bot) {
                 }
 
                 const errorMsg = await ctx.reply('⚠️ Ошибка при сохранении задачи.');
-                // Удаляем сообщение об ошибке через 5 секунд
                 setTimeout(async () => {
                     try {
                         await ctx.deleteMessage(errorMsg.message_id);
@@ -142,8 +133,4 @@ export function setupConfirmHandler(bot) {
             pendingTasks.delete(taskId);
         }
     });
-}
-
-function escapeMarkdown(text) {
-    return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
 }

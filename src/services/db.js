@@ -1,6 +1,6 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-import { convertToISODate } from '../utils/dateParser.js';
+import { convertToISODate } from '../utils/dateUtils.js';
 import path from 'path';
 import fs from 'fs';
 

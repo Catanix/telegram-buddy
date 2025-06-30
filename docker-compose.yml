@@ -15,6 +15,7 @@ services:
       AUTHORIZED_USERNAME: ${AUTHORIZED_USERNAME}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       NODE_ENV: production
+      ORT_LOG_SEVERITY_LEVEL: 3
     command: >
       sh -c "
         mkdir -p /app/data/db /app/tmp;

@@ -56,8 +56,16 @@ async function setupEnv() {
     const match = line.match(/^([A-Za-z0-9_]+)=(.*)$/);
     if (match) {
       const [, varName, defaultValue] = match;
-      const value = await prompt(`Enter value for ${varName}`, defaultValue);
-      newEnvLines.push(`${varName}=${value}`);
+
+      // Special case for ORT_LOG_SEVERITY_LEVEL - always set to 3 without prompting
+      // Данное значение нужно для ограничения в логах модели по распознованию речи
+      if (varName === 'ORT_LOG_SEVERITY_LEVEL') {
+        console.log(`Setting ${varName} to 3 (fixed value)`);
+        newEnvLines.push(`${varName}=3`);
+      } else {
+        const value = await prompt(`Enter value for ${varName}`, defaultValue);
+        newEnvLines.push(`${varName}=${value}`);
+      }
     } else {
       newEnvLines.push(line);
     }
