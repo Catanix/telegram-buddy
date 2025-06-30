@@ -1,12 +1,23 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import { convertToISODate } from '../utils/dateParser.js';
+import path from "path";
+import fs from "fs";
 
 export let db;
 
 export async function initDB() {
+    const dbPath = path.resolve('./data/db/tasks.sqlite');
+    const dbDir = path.dirname(dbPath);
+
+    // ✅ Создаём папку, если её нет
+    if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+        console.log(`📁 Created DB directory: ${dbDir}`);
+    }
+
     db = await open({
-        filename: './tasks.sqlite',
+        filename: dbPath,
         driver: sqlite3.Database
     });
 
@@ -28,7 +39,6 @@ export async function initDB() {
         await db.exec('ALTER TABLE tasks ADD COLUMN notified INTEGER DEFAULT 0;');
     }
 
-    // Migrate existing tasks with human-readable dates to ISO format
     await migrateTaskDates();
 }
 
