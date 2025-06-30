@@ -1,0 +1,25 @@
+import { pipeline } from '@xenova/transformers';
+import fs from 'fs';
+import decode from 'audio-decode';
+
+let whisper = null;
+
+async function loadWavAsFloat32Array(filePath) {
+    const buffer = fs.readFileSync(filePath);
+    const decoded = await decode(buffer);
+    return decoded.getChannelData(0); // используем только первый канал
+}
+
+export async function transcribeOffline(filePath) {
+    if (!whisper) {
+        whisper = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base');
+    }
+
+    const audioData = await loadWavAsFloat32Array(filePath);
+
+    const result = await whisper(audioData, {
+        return_timestamps: false
+    });
+
+    return result.text?.trim();
+}
