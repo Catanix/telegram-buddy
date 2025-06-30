@@ -1,7 +1,7 @@
 import fs from 'fs';
-import { downloadInstagramMedia } from '../../services/instagram.js';
+import { downloadInstagramMedia } from '../../services/media/instagram.js';
 import { extractMediaUrls } from '../../utils/extractUrl.js';
-import {downloadTikTokMedia} from "../../services/tiktok.js";
+import {downloadTikTokMedia} from "../../services/media/tiktok.js";
 
 export async function textHandler(ctx) {
     try {
