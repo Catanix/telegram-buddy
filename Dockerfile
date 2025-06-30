@@ -1,22 +1,22 @@
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
 
-# Установим git (нужен для git pull)
-RUN apk add --no-cache git
+# Установим git
+RUN apt-get update && apt-get install -y git
 
-# Устанавливаем зависимости
-COPY package*.json ./
-RUN npm install
-
-# Копируем весь код
+# Скопируем локальный .git проект (если ты собираешь из папки)
 COPY . .
+
+# Выполним git pull ДО установки зависимостей
+RUN git pull origin main
+
+# Установим зависимости (после git pull — с актуальными package.json)
+RUN npm install
 
 # Создаём tmp директорию
 RUN mkdir -p tmp
 
-# Установим переменные окружения
 ENV NODE_ENV=production
 
-# Запускаем с git pull перед npm start
-CMD sh -c "git pull origin main || true && npm start"
+CMD ["npm", "start"]
