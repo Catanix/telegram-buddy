@@ -68,7 +68,7 @@ async function setupEnv() {
 
   console.log('✅ .env file has been created successfully!');
   console.log('🐳 You can now run the application with Docker Compose:');
-  console.log('   docker-compose up -d');
+  console.log('   docker compose up -d');
 
   rl.close();
 }
