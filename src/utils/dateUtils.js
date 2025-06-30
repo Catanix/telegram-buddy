@@ -4,9 +4,8 @@ export function isValidDate(input) {
 }
 
 export function formatDateForDisplay(date) {
-  if (!isValidDate(date)) return '';
-
   const dateObj = typeof date === 'string' ? new Date(date) : date;
+  if (!dateObj || isNaN(dateObj)) return '';
 
   return dateObj.toLocaleString('ru-RU', {
     day: '2-digit',
