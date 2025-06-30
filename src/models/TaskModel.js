@@ -31,15 +31,15 @@ export async function getCurrentMinuteTasks() {
     console.log(`[TaskModel] Поиск задач для текущей минуты. Текущее время: ${now.toISOString()}`);
 
     // Extract year, month, day, hour, minute from the current date using UTC time
-    const currentYear = now.getUTCFullYear();
-    const currentMonth = now.getUTCMonth();
-    const currentDay = now.getUTCDate();
-    const currentHour = now.getUTCHours();
-    const currentMinute = now.getUTCMinutes();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const currentDay = now.getDate();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
 
-    // Create date objects for the start and end of the current minute in UTC
-    const startOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0));
-    const endOfMinute = new Date(Date.UTC(currentYear, currentMonth, currentDay, currentHour, currentMinute, 59, 999));
+    const startOfMinute = new Date(currentYear, currentMonth, currentDay, currentHour, currentMinute, 0, 0);
+    const endOfMinute = new Date(currentYear, currentMonth, currentDay, currentHour, currentMinute, 59, 999);
+
 
     const startISO = startOfMinute.toISOString();
     const endISO = endOfMinute.toISOString();
