@@ -62,6 +62,10 @@ async function setupEnv() {
       if (varName === 'ORT_LOG_SEVERITY_LEVEL') {
         console.log(`Setting ${varName} to 3 (fixed value)`);
         newEnvLines.push(`${varName}=3`);
+      }
+      if (varName === 'TIME_ZONE') {
+        const value = await prompt(`Enter value for ${varName}, like 'Asia/Almaty'`, defaultValue);
+        newEnvLines.push(`${varName}=${value}`);
       } else {
         const value = await prompt(`Enter value for ${varName}`, defaultValue);
         newEnvLines.push(`${varName}=${value}`);

@@ -16,6 +16,7 @@ services:
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
       AUTHORIZED_USERNAME: ${AUTHORIZED_USERNAME}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      TZ: ${TIME_ZONE}
       NODE_ENV: production
       ORT_LOG_SEVERITY_LEVEL: 3
     command: >
