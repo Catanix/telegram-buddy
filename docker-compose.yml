@@ -10,6 +10,8 @@ services:
     volumes:
       - db-data:/app/data/db
       - tmp-data:/app/tmp
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     environment:
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
       AUTHORIZED_USERNAME: ${AUTHORIZED_USERNAME}
