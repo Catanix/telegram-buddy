@@ -2,6 +2,7 @@ import { Telegraf } from 'telegraf';
 import { config } from 'dotenv';
 import { voiceHandler, setupConfirmHandler } from './handlers/voiceHandler.js';
 import { textHandler } from './handlers/textHandler.js';
+import { statsHandler } from './handlers/statsHandler.js';
 
 config();
 
@@ -24,6 +25,9 @@ bot.use(async (ctx, next) => {
 
     return next();
 });
+
+// 📊 Обработка команды /stats
+bot.command('stats', statsHandler);
 
 // 🎤 Обработка голосовых сообщений
 bot.on('voice', (ctx) => voiceHandler(ctx, bot));

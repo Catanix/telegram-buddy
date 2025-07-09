@@ -7,6 +7,7 @@ import { transcribeOffline } from '../../utils/transcribeOffline.js';
 import { askDeepSeek } from '../../services/deepseek.js';
 import { insertTask } from '../../models/TaskModel.js';
 import { formatDateForDisplay } from '../../utils/dateUtils.js';
+import { incrementStats } from '../../services/db.js';
 
 const pendingTasks = new Map();
 
@@ -70,6 +71,7 @@ export function setupConfirmHandler(bot) {
         const { task, time } = entry;
         try {
             await insertTask(ctx.chat.id, task, time);
+            await incrementStats(ctx.from.id, 'task'); // 📊 Increment stats
             await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
             await ctx.reply(`✅ Сохранено!\n\n📋 ${task}\n🕒 ${formatDateForDisplay(time)}`);
             await ctx.answerCbQuery();

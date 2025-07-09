@@ -1,7 +1,8 @@
 import fs from 'fs';
 import { downloadInstagramMedia } from '../../services/media/instagram.js';
 import { extractMediaUrls } from '../../utils/extractUrl.js';
-import {downloadTikTokMedia} from "../../services/media/tiktok.js";
+import { downloadTikTokMedia } from '../../services/media/tiktok.js';
+import { incrementStats } from '../../services/db.js';
 
 export async function textHandler(ctx) {
     try {
@@ -42,6 +43,9 @@ const handleMedia = async (ctx, media) => {
             await sendMedia(ctx, result);
             fs.unlinkSync(result.filePath);
 
+            // 📊 Increment stats
+            await incrementStats(ctx.from.id, media.type);
+
             console.log(`[TextHandler] Successfully processed ${media.type} URL: ${media.url}`);
         } else {
             // Update the loading message with an error
@@ -59,7 +63,7 @@ const handleMedia = async (ctx, media) => {
             ctx.chat.id,
             loadingMsg.message_id,
             null,
-            '❌ Произошла ошибка при обработке ссылки ${media.type}.'
+            `❌ Произошла ошибка при обработке ссылки ${media.type}.`
         );
         console.error('[TextHandler Error]', error);
     }
