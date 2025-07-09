@@ -12,7 +12,7 @@ async function loadWavAsFloat32Array(filePath) {
 
 export async function transcribeOffline(filePath) {
     if (!whisper) {
-        whisper = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base');
+        whisper = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small');
     }
 
     const audioData = await loadWavAsFloat32Array(filePath);
