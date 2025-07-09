@@ -32,7 +32,7 @@ Telegram бот-помощник для быстрых напоминаний с
 4. Отредактируйте файл `.env`, указав:
    - `TELEGRAM_TOKEN` - токен вашего Telegram бота (получите у [@BotFather](https://t.me/BotFather))
    - `AUTHORIZED_USERNAME` - ваш username в Telegram (без символа @)
-   - `DEEPSEEK_API_KEY` - ключ API для сервиса DeepSeek
+   - `LM_API_KEY` - ключ API для сервиса Chatgpt/DeepSeek
 
 ## Запуск
 
@@ -60,7 +60,7 @@ node index.js
    ```
    export TELEGRAM_TOKEN=your_token
    export AUTHORIZED_USERNAME=your_username
-   export DEEPSEEK_API_KEY=your_api_key
+   export LM_API_KEY=your_api_key
    ```
 
 2. Запустите контейнер с помощью Docker Compose:

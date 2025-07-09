@@ -4,10 +4,10 @@ import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
 import { convertToWav } from '../../utils/convertToWav.js';
 import { transcribeOffline } from '../../utils/transcribeOffline.js';
-import { askDeepSeek } from '../../services/deepseek.js';
 import { insertTask } from '../../models/TaskModel.js';
 import { formatDateForDisplay } from '../../utils/dateUtils.js';
 import { incrementStats } from '../../services/db.js';
+import { askLM } from "../../services/api/lm_api.js";
 
 const pendingTasks = new Map();
 
@@ -29,7 +29,7 @@ export async function voiceHandler(ctx) {
 
         if (!transcript) return await ctx.reply('🤔 Не удалось распознать речь.');
 
-        const { task, time } = await askDeepSeek(transcript);
+        const { task, time } = await askLM(transcript);
         if (!task || !time) return await ctx.reply('❌ Не удалось извлечь задачу и время.');
 
         const taskId = uuidv4().slice(0, 8);

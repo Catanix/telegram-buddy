@@ -7,7 +7,7 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
-// Function to prompt for a value with a default
+// Utility: prompt user with default
 const prompt = (question, defaultValue) => {
   return new Promise((resolve) => {
     rl.question(`${question} (${defaultValue || 'leave empty for none'}): `, (answer) => {
@@ -16,21 +16,40 @@ const prompt = (question, defaultValue) => {
   });
 };
 
+// Utility: prompt user to choose from list
+const promptChoice = async (question, choices, defaultValue) => {
+  const indexDefault = choices.indexOf(defaultValue);
+  const displayChoices = choices.map((c, i) => `${i + 1}) ${c}`).join('\n');
+  const promptText = `${question}\n${displayChoices}\nEnter number (default ${indexDefault + 1}): `;
+
+  return new Promise((resolve) => {
+    rl.question(promptText, (input) => {
+      const index = parseInt(input.trim(), 10);
+      if (!isNaN(index) && index >= 1 && index <= choices.length) {
+        resolve(choices[index - 1]);
+      } else {
+        resolve(defaultValue);
+      }
+    });
+  });
+};
+
 async function setupEnv() {
   console.log('🔧 Setting up environment variables for telegram buddy...');
 
-  // Check if .env.example exists
   const envExamplePath = path.resolve('.env.example');
+  const envPath = path.resolve('.env');
+
+  // Check for .env.example
   if (!fs.existsSync(envExamplePath)) {
     console.error('❌ .env.example file not found. Cannot continue setup.');
     rl.close();
     return;
   }
 
-  // Check if .env already exists
-  const envPath = path.resolve('.env');
+  // Warn if .env exists
   if (fs.existsSync(envPath)) {
-    const overwrite = await prompt('⚠️ .env file already exists. Overwrite? (yes/no)', 'no');
+    const overwrite = await prompt('⚠️ .env file already exists. Overwrite?', 'no');
     if (overwrite.toLowerCase() !== 'yes') {
       console.log('✅ Setup cancelled. Existing .env file was not modified.');
       rl.close();
@@ -38,54 +57,67 @@ async function setupEnv() {
     }
   }
 
-  // Read .env.example
   const envExample = fs.readFileSync(envExamplePath, 'utf8');
   const envLines = envExample.split('\n');
-
   const newEnvLines = [];
 
-  // Process each line
   for (const line of envLines) {
-    // Skip comments and empty lines
     if (line.trim().startsWith('#') || line.trim() === '') {
       newEnvLines.push(line);
       continue;
     }
 
-    // Extract variable name and default value
-    const match = line.match(/^([A-Za-z0-9_]+)=(.*)$/);
-    if (match) {
-      const [, varName, defaultValue] = match;
-
-      // Special case for ORT_LOG_SEVERITY_LEVEL - always set to 3 without prompting
-      // Данное значение нужно для ограничения в логах модели по распознованию речи
-      if (varName === 'ORT_LOG_SEVERITY_LEVEL') {
-        console.log(`Setting ${varName} to 3 (fixed value)`);
-        newEnvLines.push(`${varName}=3`);
-      }
-      if (varName === 'TIME_ZONE') {
-        const value = await prompt(`Enter value for ${varName}, like 'Asia/Almaty'`, defaultValue);
-        newEnvLines.push(`${varName}=${value}`);
-      } else {
-        const value = await prompt(`Enter value for ${varName}`, defaultValue);
-        newEnvLines.push(`${varName}=${value}`);
-      }
-    } else {
+    const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (!match) {
       newEnvLines.push(line);
+      continue;
+    }
+
+    const [, varName, defaultValue] = match;
+
+    switch (varName) {
+      case 'TELEGRAM_TOKEN':
+        newEnvLines.push(`${varName}=${await prompt('🔑 Enter your Telegram bot token', defaultValue)}`);
+        break;
+
+      case 'AUTHORIZED_USERNAME':
+        newEnvLines.push(`${varName}=${await prompt('👤 Enter your Telegram username (without @)', defaultValue)}`);
+        break;
+
+      case 'LM_PROVIDER':
+        newEnvLines.push(`${varName}=${await promptChoice('🤖 Choose Language Model Provider', ['OpenAi', 'Deepseek'], defaultValue.includes('Deep') ? 'Deepseek' : 'ChatGPT')}`);
+        break;
+
+      case 'LM_API_KEY':
+        newEnvLines.push(`${varName}=${await prompt('🔐 Enter your LM API key (OpenAi or Deepseek)', defaultValue)}`);
+        break;
+
+      case 'TIME_ZONE':
+        newEnvLines.push(`${varName}=${await prompt('🌍 Enter your time zone (e.g. Asia/Almaty)', defaultValue)}`);
+        break;
+
+      case 'TRANSFORMERS_VERBOSITY':
+        // Always set to 'error'
+        console.log(`⚙️ Setting ${varName} to 'error' (fixed value)`);
+        newEnvLines.push(`${varName}=error`);
+        break;
+
+      default:
+        // If any unexpected key is found, prompt normally
+        newEnvLines.push(`${varName}=${await prompt(`Enter value for ${varName}`, defaultValue)}`);
     }
   }
 
-  // Write to .env file
-  fs.writeFileSync(envPath, newEnvLines.join('\n'));
-
-  console.log('✅ .env file has been created successfully!');
+  fs.writeFileSync(envPath, newEnvLines.join('\n'), 'utf8');
+  console.log('\n✅ .env file has been created successfully!');
   console.log('🐳 You can now run the application with Docker Compose:');
   console.log('   docker compose up -d');
 
   rl.close();
 }
 
-setupEnv().catch(err => {
+setupEnv().catch((err) => {
   console.error('❌ Error during setup:', err);
   rl.close();
 });
+
