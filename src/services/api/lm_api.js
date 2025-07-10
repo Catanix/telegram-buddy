@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 function createLMClient() {
-    const provider = (process.env.LM_PROVIDER || 'deepseek').toLowerCase();
+    const provider = (process.env.LM_PROVIDER || 'Deepseek');
     const apiKey = process.env.LM_API_KEY;
 
     if (!apiKey) throw new Error('❌ LM_API_KEY is not set in .env');
