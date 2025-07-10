@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -35,7 +33,11 @@ services:
         echo "# Generated .env file - DO NOT EDIT MANUALLY" > /app/.env;
         echo "TELEGRAM_TOKEN=$TELEGRAM_TOKEN" >> /app/.env;
         echo "AUTHORIZED_USERNAME=$AUTHORIZED_USERNAME" >> /app/.env;
-        echo "LM_API_KEY=LM_API_KEY" >> /app/.env;
-        echo "NODE_ENV=$NODE_ENV" >> /app/.env;
+        echo "LM_API_KEY=$LM_API_KEY" >> /app/.env;
+        echo "NODE_ENV=production" >> /app/.env;
         exec npm start
       '
+
+volumes:
+  db-data:
+  tmp-data:
