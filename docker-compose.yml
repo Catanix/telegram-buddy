@@ -8,10 +8,20 @@ services:
     container_name: telegram-buddy
     restart: unless-stopped
     volumes:
-      - db-data:/app/data/db
-      - tmp-data:/app/tmp
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
+      - type: volume
+        source: db-data
+        target: /app/data/db
+      - type: volume
+        source: tmp-data
+        target: /app/tmp
+      - type: bind
+        source: /etc/timezone
+        target: /etc/timezone
+        read_only: true
+      - type: bind
+        source: /etc/localtime
+        target: /etc/localtime
+        read_only: true
     environment:
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
       AUTHORIZED_USERNAME: ${AUTHORIZED_USERNAME}
@@ -19,7 +29,6 @@ services:
       LM_API_KEY: ${LM_API_KEY}
       TZ: ${TIME_ZONE}
       NODE_ENV: production
-      TRANSFORMERS_VERBOSITY: error
     command: >
       sh -c '
         mkdir -p /app/data/db /app/tmp;
@@ -30,7 +39,3 @@ services:
         echo "NODE_ENV=$NODE_ENV" >> /app/.env;
         exec npm start
       '
-
-volumes:
-  db-data:
-  tmp-data:

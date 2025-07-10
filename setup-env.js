@@ -2,6 +2,11 @@ import fs from 'fs';
 import readline from 'readline';
 import path from 'path';
 
+if (!process.stdin.isTTY) {
+  console.error('❌ Terminal input not interactive. Run this script in a real shell (Git Bash, Linux terminal, etc).');
+  process.exit(1);
+}
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
@@ -58,7 +63,7 @@ async function setupEnv() {
   }
 
   const envExample = fs.readFileSync(envExamplePath, 'utf8');
-  const envLines = envExample.split('\n');
+  const envLines = envExample.split(/\r?\n/);
   const newEnvLines = [];
 
   for (const line of envLines) {
@@ -73,7 +78,9 @@ async function setupEnv() {
       continue;
     }
 
-    const [, varName, defaultValue] = match;
+    const [_, rawName, rawDefault] = match;
+    const varName = rawName.trim();
+    const defaultValue = rawDefault; // 👈 оставляем как есть
 
     switch (varName) {
       case 'TELEGRAM_TOKEN':
@@ -85,7 +92,7 @@ async function setupEnv() {
         break;
 
       case 'LM_PROVIDER':
-        newEnvLines.push(`${varName}=${await promptChoice('🤖 Choose Language Model Provider', ['OpenAi', 'Deepseek'], defaultValue.includes('Deep') ? 'Deepseek' : 'ChatGPT')}`);
+        newEnvLines.push(`${varName}=${await promptChoice('🤖 Choose Language Model Provider', ['OpenAi', 'Deepseek'], defaultValue.includes('Deep') ? 'Deepseek' : 'OpenAi')}`);
         break;
 
       case 'LM_API_KEY':
@@ -96,15 +103,9 @@ async function setupEnv() {
         newEnvLines.push(`${varName}=${await prompt('🌍 Enter your time zone (e.g. Asia/Almaty)', defaultValue)}`);
         break;
 
-      case 'TRANSFORMERS_VERBOSITY':
-        // Always set to 'error'
-        console.log(`⚙️ Setting ${varName} to 'error' (fixed value)`);
-        newEnvLines.push(`${varName}=error`);
-        break;
-
       default:
-        // If any unexpected key is found, prompt normally
-        newEnvLines.push(`${varName}=${await prompt(`Enter value for ${varName}`, defaultValue)}`);
+        newEnvLines.push(line); // Не обрабатываем неизвестные переменные
+        break;
     }
   }
 
@@ -120,4 +121,3 @@ setupEnv().catch((err) => {
   console.error('❌ Error during setup:', err);
   rl.close();
 });
-

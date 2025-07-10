@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "setup-env": "node setup-env.js",
+    "setup": "node setup-env.js",
     "stop": "sudo docker compose down",
     "start": "sudo docker compose up -d --build"
   },
