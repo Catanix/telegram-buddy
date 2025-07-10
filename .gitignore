@@ -3,3 +3,4 @@ tmp/
 .env
 tasks.sqlite
 package-lock.json
+yarn.lock
