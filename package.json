@@ -4,10 +4,10 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js",
-    "setup": "node setup-env.js",
-    "stop": "docker compose down",
-    "start": "docker compose up -d --build"
+    "start": "node index.js",
+    "up": "docker compose up -d --build",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
