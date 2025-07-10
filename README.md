@@ -57,7 +57,7 @@ npm run start
 
 2. Запустите контейнер с помощью Docker Compose:
    ```
-   npm run start
+   npm run up
    
    или
    
@@ -73,7 +73,7 @@ npm run start
 
 - Остановка контейнера:
   ```
-  npm run stop
+  npm run down
    
   или
   
