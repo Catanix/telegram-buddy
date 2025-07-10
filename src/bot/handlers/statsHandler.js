@@ -7,7 +7,7 @@ export async function statsHandler(ctx) {
         const userId = ctx.from.id;
         const stats = await getStats(userId);
 
-        let message = '📊 *Ваша статистика использования сервисов*\n\n';
+        let message = '📊 *Ваша статистика использования сервисов:*\n\n';
 
         if (stats.length === 0) {
             message += 'Вы еще не использовали никакие сервисы.';
