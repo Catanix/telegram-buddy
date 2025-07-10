@@ -24,7 +24,7 @@ export async function statsHandler(ctx) {
             });
         }
 
-        const imagePath = path.resolve('src/assets/images/yukiTele.png');
+        const imagePath = path.resolve('src/assets/images/yukiStats.png');
 
         await ctx.replyWithPhoto(
             { source: fs.readFileSync(imagePath) },
