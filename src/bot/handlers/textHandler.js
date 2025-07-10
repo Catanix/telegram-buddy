@@ -3,6 +3,7 @@ import { downloadInstagramMedia } from '../../services/media/instagram.js';
 import { extractMediaUrls } from '../../utils/extractUrl.js';
 import { downloadTikTokMedia } from '../../services/media/tiktok.js';
 import { incrementStats } from '../../services/db.js';
+import { downloadYouTubeVideo } from "../../services/media/youtube.js";
 
 export async function textHandler(ctx) {
     try {
@@ -21,8 +22,6 @@ export async function textHandler(ctx) {
 }
 
 const handleMedia = async (ctx, media) => {
-    const type = media ? 'Instagram' : 'TikTok';
-
     // Send a loading message
     const loadingMsg = await ctx.reply(`⏳ Загрузка медиа с ${media.type}...`);
 
@@ -33,6 +32,9 @@ const handleMedia = async (ctx, media) => {
         }
         if (media.type === 'tiktok') {
             result = await downloadTikTokMedia(media.url);
+        }
+        if (media.type === 'youtube') {
+            result = await downloadYouTubeVideo(media.url);
         }
 
         if (result && result.filePath) {
@@ -53,7 +55,7 @@ const handleMedia = async (ctx, media) => {
                 ctx.chat.id,
                 loadingMsg.message_id,
                 null,
-                '❌ Не удалось загрузить медиа. Возможно, аккаунт приватный или контент недоступен.'
+                '❌ Не удалось загрузить медиа. Возможно, аккаунт приватный или контент недоступен. Или файл слишком большой.'
             );
             console.error(`[TextHandler] Failed to download media from: ${media.url}`);
         }
