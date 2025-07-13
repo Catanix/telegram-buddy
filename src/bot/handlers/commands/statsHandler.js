@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getStats } from '../../services/db.js';
+import { getStats } from '../../../services/db.js';
 
 export async function statsHandler(ctx) {
     try {
@@ -16,7 +16,8 @@ export async function statsHandler(ctx) {
                 'task': '✅ Задачи',
                 'youtube': '▶️ YouTube',
                 'instagram': '📸 Instagram',
-                'tiktok': '🎵 TikTok',
+                'tiktok': '🎬 TikTok',
+                'music': '🎹 Музыкальных треков',
             };
 
             stats.forEach(stat => {

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "dev": "nodemon index.js",
     "up": "docker compose up -d --build",
     "down": "docker compose down",
     "logs": "docker compose logs -f"

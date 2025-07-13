@@ -9,10 +9,15 @@ export async function textHandler(ctx) {
     try {
         const text = ctx.message.text;
 
+        // Skip command messages
+        if (text.startsWith('/')) {
+            return;
+        }
+
         // Check if the message contains an media link
         const media = extractMediaUrls(text);
 
-        if (media.url.length > 0) {
+        if (media && media.url.length > 0) {
             await handleMedia(ctx, media);
         }
 
@@ -45,10 +50,8 @@ const handleMedia = async (ctx, media) => {
             await sendMedia(ctx, result);
             fs.unlinkSync(result.filePath);
 
-            // 📊 Increment stats
+            // Increment stats
             await incrementStats(ctx.from.id, media.type);
-
-            console.log(`[TextHandler] Successfully processed ${media.type} URL: ${media.url}`);
         } else {
             // Update the loading message with an error
             await ctx.telegram.editMessageText(
@@ -57,7 +60,7 @@ const handleMedia = async (ctx, media) => {
                 null,
                 '❌ Не удалось загрузить медиа. Возможно, аккаунт приватный или контент недоступен. Или файл слишком большой.'
             );
-            console.error(`[TextHandler] Failed to download media from: ${media.url}`);
+            console.error(`Failed to download media from: ${media.url}`);
         }
     } catch (error) {
         // Update the loading message with an error
@@ -80,8 +83,6 @@ async function sendMedia(ctx, media) {
     try {
         const { filePath, mediaType } = media;
 
-        console.log(`[TextHandler] Sending ${mediaType} from file: ${filePath}`);
-
         // Check if the file exists
         if (!fs.existsSync(filePath)) {
             throw new Error(`File does not exist: ${filePath}`);
@@ -89,16 +90,12 @@ async function sendMedia(ctx, media) {
 
         // Send the media based on its type
         if (mediaType === 'video') {
-            // Send as video
             await ctx.replyWithVideo({ source: filePath });
         } else {
-            // Send as photo
             await ctx.replyWithPhoto({ source: filePath });
         }
-
-        console.log(`[TextHandler] Successfully sent ${mediaType} to user`);
     } catch (error) {
-        console.error('[SendMedia Error]', error);
+        console.error('SendMedia Error:', error);
         await ctx.reply('❌ Не удалось отправить медиа.');
     }
 }

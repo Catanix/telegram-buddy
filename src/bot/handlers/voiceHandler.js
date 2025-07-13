@@ -60,18 +60,24 @@ export async function voiceHandler(ctx) {
 }
 
 export function setupConfirmHandler(bot) {
-    bot.on('callback_query', async (ctx) => {
+    bot.on('callback_query', async (ctx, next) => {
         const data = ctx.callbackQuery.data;
-        if (!data.startsWith('confirm_')) return;
+
+        // Если это не наш callback, передаем управление дальше
+        if (!data.startsWith('confirm_')) {
+            return next();
+        }
 
         const taskId = data.slice('confirm_'.length);
         const entry = pendingTasks.get(taskId);
-        if (!entry) return await ctx.answerCbQuery('⚠️ Задача не найдена', { show_alert: true });
+        if (!entry) {
+            return await ctx.answerCbQuery('⚠️ Задача не найдена', { show_alert: true });
+        }
 
         const { task, time } = entry;
         try {
             await insertTask(ctx.chat.id, task, time);
-            await incrementStats(ctx.from.id, 'task'); // 📊 Increment stats
+            await incrementStats(ctx.from.id, 'task');
             await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
             await ctx.reply(`✅ Сохранено!\n\n📋 ${task}\n🕒 ${formatDateForDisplay(time)}`);
             await ctx.answerCbQuery();
