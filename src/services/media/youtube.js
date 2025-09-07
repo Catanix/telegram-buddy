@@ -30,6 +30,28 @@ export async function getVideoInfo(url) {
 
         let availableFormats = [];
 
+        // --- Improved Audio Format Selection ---
+        // Prioritize the original language audio track
+        const audioTracks = info.player_response?.streamingData?.adaptiveFormats?.filter(f => f.mimeType.startsWith('audio/mp4'));
+        let bestAudioFormat = null;
+        if (audioTracks && audioTracks.length > 0) {
+            // Find the default/original audio track if available
+            const defaultTrack = info.videoDetails.audioTracks?.find(t => t.audioIsDefault);
+            if (defaultTrack) {
+                bestAudioFormat = audioTracks.find(f => f.audioTrack?.id === defaultTrack.id) || audioTracks.find(f => f.itag.toString() === defaultTrack.id);
+            }
+            // Fallback to the highest bitrate mp4 audio if no default is found
+            if (!bestAudioFormat) {
+                bestAudioFormat = audioTracks.sort((a, b) => b.bitrate - a.bitrate)[0];
+            }
+        }
+        // Final fallback for cases where the above logic fails
+        if (!bestAudioFormat) {
+            bestAudioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: format => format.container === 'mp4' });
+        }
+        // --- End of Audio Selection ---
+
+
         const processQuality = (quality, maxSizeMB) => {
             // 1. Prioritize combined formats (no ffmpeg needed)
             const combinedFormat = info.formats.find(f =>
@@ -49,18 +71,19 @@ export async function getVideoInfo(url) {
             }
 
             // 2. Fallback to separate streams (requires ffmpeg)
+            // Prioritize mp4 with avc1 codec for max compatibility
             const videoFormat = ytdl.chooseFormat(info.formats, {
                 quality: 'highestvideo',
                 filter: (format) =>
                     format.qualityLabel === quality &&
                     format.container === 'mp4' &&
+                    format.codecs?.startsWith('avc1') && // Prefer H.264
                     !format.hasAudio
             });
-            const audioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
 
-            if (videoFormat && audioFormat) {
+            if (videoFormat && bestAudioFormat) {
                 const videoSize = videoFormat.contentLength ? parseInt(videoFormat.contentLength) : 0;
-                const audioSize = audioFormat.contentLength ? parseInt(audioFormat.contentLength) : 0;
+                const audioSize = bestAudioFormat.contentLength ? parseInt(bestAudioFormat.contentLength) : 0;
                 const totalSizeMB = Math.round((videoSize + audioSize) / (1024 * 1024));
 
                 if (totalSizeMB <= maxSizeMB) {
@@ -68,7 +91,7 @@ export async function getVideoInfo(url) {
                         quality: quality,
                         sizeMB: totalSizeMB,
                         videoItag: videoFormat.itag,
-                        audioItag: audioFormat.itag,
+                        audioItag: bestAudioFormat.itag,
                     });
                 }
             }
@@ -110,7 +133,7 @@ export async function getVideoInfo(url) {
  */
 export async function downloadVideoByItag(videoId, videoItag, audioItag, title) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const cleanTitle = title.replace(/[^\w\s]/gi, '').substring(0, 20);
+    const cleanTitle = title.replace(/[^\w\s.-]/gi, '').substring(0, 25);
     const uniqueId = uuidv4();
 
     if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
@@ -121,12 +144,12 @@ export async function downloadVideoByItag(videoId, videoItag, audioItag, title) 
     try {
         // If we have separate audio and video streams, merge them with ffmpeg
         if (audioItag) {
-            console.log(`[Downloader] Downloading separate streams for: ${url}`);
+            console.log(`[Downloader] Downloading separate streams for: ${url} (V: ${videoItag}, A: ${audioItag})`);
             const videoPath = path.join(TMP_DIR, `video_${uniqueId}.mp4`);
-            const audioPath = path.join(TMP_DIR, `audio_${uniqueId}.m4a`); // Use m4a for audio
+            const audioPath = path.join(TMP_DIR, `audio_${uniqueId}.m4a`);
 
             // Download video stream
-            const videoStream = ytdl(url, { quality: videoItag });
+            const videoStream = ytdl(url, { filter: format => format.itag === videoItag });
             const videoWriteStream = fs.createWriteStream(videoPath);
             await new Promise((resolve, reject) => {
                 videoStream.pipe(videoWriteStream);
@@ -137,7 +160,7 @@ export async function downloadVideoByItag(videoId, videoItag, audioItag, title) 
 
 
             // Download audio stream
-            const audioStream = ytdl(url, { quality: audioItag });
+            const audioStream = ytdl(url, { filter: format => format.itag === audioItag });
             const audioWriteStream = fs.createWriteStream(audioPath);
             await new Promise((resolve, reject) => {
                 audioStream.pipe(audioWriteStream);
@@ -154,10 +177,21 @@ export async function downloadVideoByItag(videoId, videoItag, audioItag, title) 
                     .input(videoPath)
                     .input(audioPath)
                     .outputOptions('-c:v copy') // Copy video stream without re-encoding
-                    .outputOptions('-c:a aac')   // Re-encode audio to AAC
+                    .outputOptions('-c:a copy') // Copy audio stream without re-encoding
                     .save(finalFilePath)
                     .on('end', resolve)
-                    .on('error', reject);
+                    .on('error', (err) => {
+                        console.error('[FFMPEG Error] Could not copy audio codec. Retrying with AAC re-encoding.', err.message);
+                        // Fallback: If copying fails (e.g., incompatible formats), re-encode to AAC
+                        ffmpeg()
+                            .input(videoPath)
+                            .input(audioPath)
+                            .outputOptions('-c:v copy')
+                            .outputOptions('-c:a aac')
+                            .save(finalFilePath)
+                            .on('end', resolve)
+                            .on('error', reject); // If this also fails, reject
+                    });
             });
 
             console.log(`[Downloader] Merged file saved to: ${finalFilePath}`);
