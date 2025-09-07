@@ -31,23 +31,42 @@ export async function getVideoInfo(url) {
         let availableFormats = [];
 
         // --- Improved Audio Format Selection ---
-        // Prioritize the original language audio track
-        const audioTracks = info.player_response?.streamingData?.adaptiveFormats?.filter(f => f.mimeType.startsWith('audio/mp4'));
+        // Get all available adaptive audio formats
+        const audioFormats = info.player_response?.streamingData?.adaptiveFormats?.filter(f => f.mimeType.startsWith('audio/'));
         let bestAudioFormat = null;
-        if (audioTracks && audioTracks.length > 0) {
-            // Find the default/original audio track if available
-            const defaultTrack = info.videoDetails.audioTracks?.find(t => t.audioIsDefault);
-            if (defaultTrack) {
-                bestAudioFormat = audioTracks.find(f => f.audioTrack?.id === defaultTrack.id) || audioTracks.find(f => f.itag.toString() === defaultTrack.id);
+
+        if (audioFormats && audioFormats.length > 0) {
+            console.log('[YouTube Info] [V7] Analyzing available audio formats to find the original...');
+            audioFormats.forEach((f, i) => {
+                if (f.audioTrack) {
+                    console.log(`[YouTube Info] [V7] - Format #${i}: Name="${f.audioTrack.displayName}", Lang=${f.audioTrack.id}, Default=${f.audioTrack.audioIsDefault}, Bitrate=${f.bitrate}`);
+                }
+            });
+
+            // Based on direct analysis, the original track is the one that is NOT the default.
+            const nonDefaultFormats = audioFormats.filter(f => f.audioTrack && f.audioTrack.audioIsDefault === false);
+
+            if (nonDefaultFormats.length > 0) {
+                // From the non-default (original) tracks, choose the one with the highest bitrate.
+                console.log('[YouTube Info] [V7] Found non-default formats. Selecting the one with the highest bitrate as the original.');
+                nonDefaultFormats.sort((a, b) => b.bitrate - a.bitrate);
+                bestAudioFormat = nonDefaultFormats[0];
+            } else {
+                // Fallback: If all tracks are default (or something unexpected), choose the overall highest bitrate audio.
+                console.log('[YouTube Info] [V7] No non-default format found. Falling back to the highest bitrate audio overall.');
+                audioFormats.sort((a, b) => b.bitrate - a.bitrate);
+                bestAudioFormat = audioFormats[0];
             }
-            // Fallback to the highest bitrate mp4 audio if no default is found
-            if (!bestAudioFormat) {
-                bestAudioFormat = audioTracks.sort((a, b) => b.bitrate - a.bitrate)[0];
+
+            if (bestAudioFormat) {
+                console.log(`[YouTube Info] [V7] Final selection: Name="${bestAudioFormat.audioTrack.displayName}", Itag=${bestAudioFormat.itag}`);
             }
         }
-        // Final fallback for cases where the above logic fails
+
+        // Final fallback if no adaptive audio was found at all
         if (!bestAudioFormat) {
-            bestAudioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: format => format.container === 'mp4' });
+            console.log('[YouTube Info] [V7] Final Fallback: No adaptive audio formats found at all. Using ytdl-core default.');
+            bestAudioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
         }
         // --- End of Audio Selection ---
 
@@ -92,6 +111,7 @@ export async function getVideoInfo(url) {
                         sizeMB: totalSizeMB,
                         videoItag: videoFormat.itag,
                         audioItag: bestAudioFormat.itag,
+                        audioTrackId: bestAudioFormat.audioTrack?.id // Store the specific track ID
                     });
                 }
             }
@@ -124,14 +144,15 @@ export async function getVideoInfo(url) {
 
 
 /**
- * Downloads a YouTube video by its itag(s).
+ * Downloads a YouTube video by its itag(s) and optionally a specific audio track ID.
  * @param {string} videoId - YouTube video ID
  * @param {number} videoItag - The itag of the video format (or combined format)
  * @param {number|null} audioItag - The itag of the audio format (if separate)
  * @param {string} title - The video title
+ * @param {string|null} audioTrackId - The specific ID of the audio track to select
  * @returns {Promise<{filePath: string}|null>}
  */
-export async function downloadVideoByItag(videoId, videoItag, audioItag, title) {
+export async function downloadVideoByItag(videoId, videoItag, audioItag, title, audioTrackId) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const cleanTitle = title.replace(/[^\w\s.-]/gi, '').substring(0, 25);
     const uniqueId = uuidv4();
@@ -160,7 +181,16 @@ export async function downloadVideoByItag(videoId, videoItag, audioItag, title) 
 
 
             // Download audio stream
-            const audioStream = ytdl(url, { filter: format => format.itag === audioItag });
+            const audioStream = ytdl(url, {
+                filter: format => {
+                    // If an audioTrackId is provided, we must match it.
+                    if (audioTrackId) {
+                        return format.itag === audioItag && format.audioTrack?.id === audioTrackId;
+                    }
+                    // Otherwise, just match the itag (for backwards compatibility or simpler cases).
+                    return format.itag === audioItag;
+                }
+            });
             const audioWriteStream = fs.createWriteStream(audioPath);
             await new Promise((resolve, reject) => {
                 audioStream.pipe(audioWriteStream);

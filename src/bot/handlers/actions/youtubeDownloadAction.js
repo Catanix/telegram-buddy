@@ -4,12 +4,13 @@ import { downloadVideoByItag } from '../../../services/media/youtube.js';
 import { incrementStats } from '../../../services/db.js';
 
 export const registerYoutubeDownloadAction = (bot) => {
-    // Callback data format: yt_dl|videoId|videoItag|audioItag
-    bot.action(/yt_dl\|(.+?)\|(\d+)\|(\d+)/, async (ctx) => {
+    // Callback data format: yt_dl|videoId|videoItag|audioItag|audioTrackId
+    bot.action(/yt_dl\|(.+?)\|(\d+)\|(\d+)\|(.+)/, async (ctx) => {
         try {
-            const [_, videoId, videoItagStr, audioItagStr] = ctx.match;
+            const [_, videoId, videoItagStr, audioItagStr, audioTrackId] = ctx.match;
             const videoItag = parseInt(videoItagStr, 10);
             const audioItag = audioItagStr === '0' ? null : parseInt(audioItagStr, 10);
+            const finalAudioTrackId = audioTrackId === '0' ? null : audioTrackId;
             const userId = ctx.from.id;
 
             // 1. Delete the message with the quality selection buttons
@@ -30,7 +31,7 @@ export const registerYoutubeDownloadAction = (bot) => {
             );
 
             // 4. Download the video
-            const result = await downloadVideoByItag(videoId, videoItag, audioItag, title);
+            const result = await downloadVideoByItag(videoId, videoItag, audioItag, title, finalAudioTrackId);
 
             if (result && result.filePath) {
                 // 5. Send the video file

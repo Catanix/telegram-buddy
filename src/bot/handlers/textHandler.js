@@ -44,10 +44,11 @@ const handleMedia = async (ctx, media) => {
 
             if (videoInfo && videoInfo.formats.length > 0) {
                 const buttons = videoInfo.formats.map(format => {
-                    // Callback data format: yt_dl|videoId|videoItag|audioItag
+                    // Callback data format: yt_dl|videoId|videoItag|audioItag|audioTrackId
                     const audioItag = format.audioItag || '0'; // Use '0' if no separate audio
                     const videoItag = format.videoItag || format.itag;
-                    const callbackData = `yt_dl|${videoInfo.videoId}|${videoItag}|${audioItag}`;
+                    const audioTrackId = format.audioTrackId || '0'; // Use '0' if no specific track
+                    const callbackData = `yt_dl|${videoInfo.videoId}|${videoItag}|${audioItag}|${audioTrackId}`;
                     return Markup.button.callback(
                         `${format.quality} (${format.sizeMB}MB)`,
                         callbackData
