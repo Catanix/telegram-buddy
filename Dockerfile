@@ -1,18 +1,18 @@
-FROM node:18-slim
+FROM node:20-alpine
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y git tzdata
-
-# Копируем файлы проекта
-COPY . .
-
-# Устанавливаем зависимости
+# Install dependencies first for better caching
+COPY package*.json ./
 RUN npm install
 
-# Создаём tmp директорию
+# Copy application code
+COPY . .
+
+# Create tmp directory
 RUN mkdir -p tmp
 
-ENV NODE_ENV=production
+# Expose port if needed
+EXPOSE 3000
 
 CMD ["npm", "start"]

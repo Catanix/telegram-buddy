@@ -1,6 +1,0 @@
-node_modules/
-tmp/
-.env
-tasks.sqlite
-package-lock.json
-yarn.lock

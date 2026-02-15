@@ -6,6 +6,7 @@ import { extractMediaUrls } from '../../utils/extractUrl.js';
 import { downloadTikTokMedia } from '../../services/media/tiktok.js';
 import { incrementStats } from '../../services/db.js';
 import { getVideoInfo } from "../../services/media/youtube.js";
+import { downloadXMedia, downloadXMediaFile, formatXMessage } from '../../services/media/x.js';
 
 export async function textHandler(ctx) {
     try {
@@ -72,6 +73,51 @@ const handleMedia = async (ctx, media) => {
             } else {
                 // If no suitable formats are found, handle it as an error
                 throw new Error('No suitable YouTube formats found or video is too large.');
+            }
+        } else if (media.type === 'x') {
+            // X/Twitter handling
+            const tweetData = await downloadXMedia(media.url);
+
+            if (tweetData && tweetData.error === 'not_found') {
+                await ctx.telegram.editMessageText(
+                    ctx.chat.id,
+                    loadingMsg.message_id,
+                    null,
+                    '❌ Твит не найден. Возможно, он был удален или аккаунт приватный.'
+                );
+                return;
+            }
+
+            if (tweetData) {
+                // Delete loading message
+                await ctx.deleteMessage(loadingMsg.message_id);
+
+                // Format and send message
+                const messageText = formatXMessage(tweetData);
+                await ctx.reply(messageText, { 
+                    parse_mode: 'MarkdownV2',
+                    disable_web_page_preview: false 
+                });
+
+                // Download and send media files
+                if (tweetData.media && tweetData.media.length > 0) {
+                    for (const item of tweetData.media) {
+                        const downloadedMedia = await downloadXMediaFile(item.url, item.type);
+                        if (downloadedMedia && downloadedMedia.filePath) {
+                            if (downloadedMedia.mediaType === 'video') {
+                                await ctx.replyWithVideo({ source: downloadedMedia.filePath });
+                            } else {
+                                await ctx.replyWithPhoto({ source: downloadedMedia.filePath });
+                            }
+                            // Clean up
+                            fs.unlinkSync(downloadedMedia.filePath);
+                        }
+                    }
+                }
+
+                // Increment stats
+                await incrementStats(ctx.from.id, 'x');
+                return;
             }
         }
 
