@@ -1,7 +1,7 @@
 /**
- * Extract the first media URL (Instagram, TikTok, YouTube, Spotify or other) from text
+ * Extract the first media URL (Instagram, TikTok, YouTube, Spotify, X/Twitter or other) from text
  * @param {string} text - The text to extract URLs from
- * @returns {{ url: string, type: 'instagram' | 'tiktok' | 'youtube' | 'spotify' | 'other' } | null}
+ * @returns {{ url: string, type: 'instagram' | 'tiktok' | 'youtube' | 'spotify' | 'x' | 'other' } | null}
  */
 export function extractMediaUrls(text) {
     const urlRegex = /https?:\/\/[^\s]+/g;
@@ -32,6 +32,12 @@ export function extractMediaUrls(text) {
         if (/https?:\/\/(?:open\.)?spotify\.com\/(?:track|playlist|album)\/[a-zA-Z0-9]+/.test(url)) {
             console.log(`[TextHandler] Found spotify URL: ${url}`);
             return { url, type: 'spotify' };
+        }
+
+        // X / Twitter (posts/statuses)
+        if (/https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/(?:[^/]+\/status\/\d+|i\/status\/\d+)/.test(url)) {
+            console.log(`[TextHandler] Found X/Twitter URL: ${url}`);
+            return { url, type: 'x' };
         }
 
         console.log(`[TextHandler] Found other URL: ${url}`);
