@@ -32,56 +32,89 @@ export async function getVideoInfo(url) {
 
         // --- Improved Audio Format Selection ---
         // Get all available adaptive audio formats
-        const audioFormats = info.player_response?.streamingData?.adaptiveFormats?.filter(f => f.mimeType.startsWith('audio/'));
+        const audioFormats = info.player_response?.streamingData?.adaptiveFormats?.filter(f => f.mimeType && f.mimeType.startsWith('audio/'));
         let bestAudioFormat = null;
 
         if (audioFormats && audioFormats.length > 0) {
-            console.log('[YouTube Info] [V7] Analyzing available audio formats to find the original...');
+            console.log(`[YouTube Info] Found ${audioFormats.length} audio format(s). Analyzing...`);
+            
             audioFormats.forEach((f, i) => {
-                if (f.audioTrack) {
-                    console.log(`[YouTube Info] [V7] - Format #${i}: Name="${f.audioTrack.displayName}", Lang=${f.audioTrack.id}, Default=${f.audioTrack.audioIsDefault}, Bitrate=${f.bitrate}`);
-                }
+                const trackInfo = f.audioTrack ? 
+                    `Track="${f.audioTrack.displayName}", Lang=${f.audioTrack.id}, Default=${f.audioTrack.audioIsDefault}` : 
+                    'No track info';
+                console.log(`[YouTube Info] - Format #${i}: Itag=${f.itag}, ${trackInfo}, Bitrate=${f.bitrate}, Codec=${f.codecs}`);
             });
 
-            // Based on direct analysis, the original track is the one that is NOT the default.
-            const nonDefaultFormats = audioFormats.filter(f => f.audioTrack && f.audioTrack.audioIsDefault === false);
-
-            if (nonDefaultFormats.length > 0) {
-                // From the non-default (original) tracks, choose the one with the highest bitrate.
-                console.log('[YouTube Info] [V7] Found non-default formats. Selecting the one with the highest bitrate as the original.');
-                nonDefaultFormats.sort((a, b) => b.bitrate - a.bitrate);
-                bestAudioFormat = nonDefaultFormats[0];
+            // Strategy: 
+            // 1. Prefer formats WITH audioTrack info (more reliable)
+            // 2. For videos with multiple tracks: audioIsDefault=true is usually the ORIGINAL
+            // 3. For single track videos: take the highest bitrate
+            
+            const formatsWithTrackInfo = audioFormats.filter(f => f.audioTrack);
+            
+            if (formatsWithTrackInfo.length > 0) {
+                // We have track info - use it to determine original audio
+                // audioIsDefault=true typically means the original uploaded audio
+                const defaultFormats = formatsWithTrackInfo.filter(f => f.audioTrack.audioIsDefault === true);
+                
+                if (defaultFormats.length > 0) {
+                    console.log('[YouTube Info] Found default (original) audio track(s). Selecting highest bitrate.');
+                    defaultFormats.sort((a, b) => b.bitrate - a.bitrate);
+                    bestAudioFormat = defaultFormats[0];
+                } else {
+                    // No default marked - take highest bitrate from tracks with info
+                    console.log('[YouTube Info] No default track found. Selecting highest bitrate from tracks with metadata.');
+                    formatsWithTrackInfo.sort((a, b) => b.bitrate - a.bitrate);
+                    bestAudioFormat = formatsWithTrackInfo[0];
+                }
             } else {
-                // Fallback: If all tracks are default (or something unexpected), choose the overall highest bitrate audio.
-                console.log('[YouTube Info] [V7] No non-default format found. Falling back to the highest bitrate audio overall.');
+                // No track info available - use highest bitrate
+                console.log('[YouTube Info] No audio track metadata. Using highest bitrate audio.');
                 audioFormats.sort((a, b) => b.bitrate - a.bitrate);
                 bestAudioFormat = audioFormats[0];
             }
 
             if (bestAudioFormat) {
-                console.log(`[YouTube Info] [V7] Final selection: Name="${bestAudioFormat.audioTrack.displayName}", Itag=${bestAudioFormat.itag}`);
+                const trackName = bestAudioFormat.audioTrack ? bestAudioFormat.audioTrack.displayName : 'unknown';
+                console.log(`[YouTube Info] Selected audio: Itag=${bestAudioFormat.itag}, Track="${trackName}", Bitrate=${bestAudioFormat.bitrate}`);
             }
         }
 
         // Final fallback if no adaptive audio was found at all
         if (!bestAudioFormat) {
-            console.log('[YouTube Info] [V7] Final Fallback: No adaptive audio formats found at all. Using ytdl-core default.');
-            bestAudioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
+            console.log('[YouTube Info] Fallback: No adaptive audio found. Using ytdl-core highestaudio filter.');
+            try {
+                bestAudioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+            } catch (e) {
+                console.log('[YouTube Info] Fallback failed:', e.message);
+            }
         }
         // --- End of Audio Selection ---
 
 
-        const processQuality = (quality, maxSizeMB) => {
+        // Map quality labels for Shorts and regular videos
+        const qualityMap = {
+            '1080p': ['1080p', '1080p60', '1080p50', '1080p48'],
+            '720p': ['720p', '720p60', '720p50', '720p48', 'hd'],
+            '480p': ['480p', '480p60', 'sd'],
+            '360p': ['360p', '360p60'],
+            'shorts': ['1080p', '1080p60', '720p', '720p60', '480p', '480p60'] // Shorts often have different labeling
+        };
+
+        const processQuality = (qualityLabel, maxSizeMB, qualityAliases) => {
+            const aliases = qualityAliases || [qualityLabel];
+            
             // 1. Prioritize combined formats (no ffmpeg needed)
             const combinedFormat = info.formats.find(f =>
-                f.qualityLabel === quality && f.hasVideo && f.hasAudio && f.container === 'mp4'
+                aliases.includes(f.qualityLabel) && f.hasVideo && f.hasAudio && f.container === 'mp4'
             );
 
             if (combinedFormat && combinedFormat.contentLength) {
                 const sizeMB = Math.round(parseInt(combinedFormat.contentLength) / (1024 * 1024));
                 if (sizeMB <= maxSizeMB) {
+                    console.log(`[YouTube Info] Found combined format for ${qualityLabel}: itag=${combinedFormat.itag}, size=${sizeMB}MB`);
                     availableFormats.push({
-                        quality: quality,
+                        quality: qualityLabel,
                         sizeMB,
                         itag: combinedFormat.itag,
                     });
@@ -90,15 +123,17 @@ export async function getVideoInfo(url) {
             }
 
             // 2. Fallback to separate streams (requires ffmpeg)
-            // Prioritize mp4 with avc1 codec for max compatibility
-            const videoFormat = ytdl.chooseFormat(info.formats, {
-                quality: 'highestvideo',
-                filter: (format) =>
-                    format.qualityLabel === quality &&
-                    format.container === 'mp4' &&
-                    format.codecs?.startsWith('avc1') && // Prefer H.264
-                    !format.hasAudio
-            });
+            // Look for video-only formats matching our quality aliases
+            const videoFormats = info.formats.filter(f => 
+                aliases.includes(f.qualityLabel) && 
+                f.hasVideo && 
+                !f.hasAudio &&
+                f.container === 'mp4'
+            );
+            
+            // Sort by bitrate to get best quality
+            videoFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+            const videoFormat = videoFormats[0];
 
             if (videoFormat && bestAudioFormat) {
                 const videoSize = videoFormat.contentLength ? parseInt(videoFormat.contentLength) : 0;
@@ -106,19 +141,32 @@ export async function getVideoInfo(url) {
                 const totalSizeMB = Math.round((videoSize + audioSize) / (1024 * 1024));
 
                 if (totalSizeMB <= maxSizeMB) {
+                    console.log(`[YouTube Info] Found separate streams for ${qualityLabel}: video_itag=${videoFormat.itag}, audio_itag=${bestAudioFormat.itag}, size=${totalSizeMB}MB`);
                     availableFormats.push({
-                        quality: quality,
+                        quality: qualityLabel,
                         sizeMB: totalSizeMB,
                         videoItag: videoFormat.itag,
                         audioItag: bestAudioFormat.itag,
-                        audioTrackId: bestAudioFormat.audioTrack?.id // Store the specific track ID
+                        audioTrackId: bestAudioFormat.audioTrack?.id
                     });
                 }
             }
         };
 
-        processQuality('720p', MAX_FILE_SIZE_720P_MB);
-        processQuality('480p', MAX_FILE_SIZE_480P_MB);
+        // Try to find formats for different qualities
+        // For Shorts, try higher qualities first as they're usually smaller
+        const isShorts = url.includes('/shorts/') || info.videoDetails.isShort;
+        
+        if (isShorts) {
+            console.log('[YouTube Info] Detected Shorts video - adjusting quality selection');
+            // For Shorts, be more lenient with file sizes
+            processQuality('720p', MAX_FILE_SIZE_720P_MB * 2, qualityMap['720p']);
+            processQuality('1080p', MAX_FILE_SIZE_720P_MB * 2, qualityMap['1080p']);
+            processQuality('480p', MAX_FILE_SIZE_480P_MB * 2, qualityMap['480p']);
+        } else {
+            processQuality('720p', MAX_FILE_SIZE_720P_MB, qualityMap['720p']);
+            processQuality('480p', MAX_FILE_SIZE_480P_MB, qualityMap['480p']);
+        }
 
         // Remove duplicates by quality, preferring the first one found (which will be the combined one)
         const uniqueFormats = availableFormats.reduce((acc, current) => {
