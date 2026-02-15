@@ -17,7 +17,7 @@ export function extractMediaUrls(text) {
         }
 
         // TikTok
-        if (/https?:\/\/(?:www|m|vm)\.tiktok\.com\/[^\s]+/.test(url)) {
+        if (/https?:\/\/.+\.tiktok\.com\/[^\s]+/.test(url)) {
             console.log(`[TextHandler] Found tiktok URL: ${url}`);
             return { url, type: 'tiktok' };
         }
