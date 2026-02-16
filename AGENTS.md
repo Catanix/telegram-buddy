@@ -1,95 +1,77 @@
-# AGENTS.md - Telegram Buddy Bot
+# Telegram Buddy - Project Documentation
 
-## О проекте
+## Overview
+Telegram бот для извлечения контента из социальных сетей и AI-саммаризации обсуждений в группах.
 
-**Telegram Buddy** — личный бот-помощник для быстрых задач: голосовые напоминания, скачивание медиа (Instagram, TikTok, YouTube, X/Twitter), поиск музыки.
+## Features
 
-## Технологии
+### Private Chat
+- Auto-download media from social links (TikTok, Instagram, YouTube, X)
+- Music search: `/music <query>`
+- Stats: `/stats`
 
-- **Node.js 20+** (ES модули)
-- **Telegraf** — Telegram Bot API
-- **SQLite** — хранение задач
-- **@xenova/transformers** — офлайн распознавание речи (Whisper)
-- **OpenAI/DeepSeek API** — AI обработка текста
+### Groups (Admin Approval Required)
+- `/unzip` - Extract content from links (reply to message or use after link)
+- `/summary` - AI summarization of last 100 messages via DeepSeek
+- Admin approval via buttons in private chat when bot added to group
 
-## Структура проекта
+## Architecture
 
-```
-src/
-├── bot/
-│   ├── handlers/
-│   │   ├── commands/
-│   │   │   ├── musicSearchHandler.js    # /music команда
-│   │   │   └── statsHandler.js          # /stats команда
-│   │   ├── voiceHandler.js              # Обработка голосовых
-│   │   ├── textHandler.js               # Обработка текста и ссылок
-│   │   └── actions/
-│   │       └── youtubeDownloadAction.js # Кнопки YouTube
-│   ├── middleware/
-│   │   └── checkUserIsTrusted.js        # Проверка авторизации
-│   └── index.js                         # Точка входа бота
-├── services/
-│   ├── media/
-│   │   ├── instagram.js                 # Instagram downloader
-│   │   ├── tiktok.js                    # TikTok downloader
-│   │   ├── youtube.js                   # YouTube downloader
-│   │   ├── x.js                         # X/Twitter downloader
-│   │   └── music.js                     # Music search (Deezer API)
-│   └── db.js                            # SQLite работа с БД
-├── utils/
-│   └── extractUrl.js                    # Извлечение URL из текста
-└── models/
-    └── TaskModel.js                     # Модель задач
-```
+### Key Files
+- `src/bot/handlers/commands/groupCommands.js` - `/unzip`, `/summary` handlers
+- `src/bot/handlers/textHandler.js` - Auto-extract for private chats only
+- `src/bot/middleware/checkAccess.js` - Access control logic
+- `src/services/api/summarize.js` - DeepSeek integration
+- `src/models/GroupPermissionsModel.js` - Group access management
 
-## Основные компоненты
+### Database Schema
+- `group_permissions` - Group access control (group_id, allowed, requested_by)
+- `group_messages` - Message history per group (up to 100 messages, auto-cleanup)
+- `user_stats` - Usage statistics
 
-### Media Downloaders
+## Deployment
 
-| Файл | Источник | API |
-|------|----------|-----|
-| `instagram.js` | Instagram | `instagram-url-direct` |
-| `tiktok.js` | TikTok | `tikwm.com` API |
-| `youtube.js` | YouTube | `@distube/ytdl-core` |
-| `x.js` | X/Twitter | `api.fxtwitter.com` |
-| `music.js` | Music search | `api.deezer.com` |
-
-### Команды бота
-
-- `/music <query>` — поиск музыки
-- `/stats` — статистика использования
-- Голосовые — создание задач
-- Ссылки — автоматическое скачивание
-
-## Конфигурация
-
-Файл `.env`:
+### Docker (Recommended)
 ```bash
-TELEGRAM_TOKEN=xxx
-AUTHORIZED_USERNAME=catanix
-LM_API_KEY=xxx
-```
-
-## Запуск
-
-```bash
-# Разработка
-npm run dev
-
-# Продакшен (Docker)
-npm run up
-```
-
-## Важные заметки
-
-- TikTok: поддерживает ВСЕ поддомены (`vt.`, `vm.`, `www.`, `m.`)
-- YouTube: выбирает оригинальное аудио (`audioIsDefault=true`)
-- X: парсит через Fxtwitter API
-- Music: Deezer API возвращает 30-секундные превью
-
-## Docker
-
-```bash
+cd ~/telegram-buddy
 docker compose up -d --build
-docker compose logs -f
 ```
+
+### Restart
+```bash
+docker compose restart
+```
+
+### Logs
+```bash
+docker logs telegram-buddy -f
+```
+
+## Environment Variables
+```
+TELEGRAM_TOKEN=your_bot_token
+AUTHORIZED_USERNAME=your_username
+ADMIN_CHAT_ID=your_chat_id_for_notifications
+LM_PROVIDER=Deepseek
+LM_API_KEY=your_deepseek_key
+```
+
+## Commands
+| Command | Description | Where |
+|---------|-------------|-------|
+| `/start` | Bot info | Everywhere |
+| `/music` | Music search | Private |
+| `/stats` | Usage stats | Private |
+| `/unzip` | Extract content | Groups (approved) |
+| `/summary` | AI summary | Groups (approved) |
+
+## Supported Platforms
+- TikTok
+- Instagram (posts/reels)
+- YouTube
+- X (Twitter)
+
+## Notes
+- Each group has isolated message history (max 100 messages)
+- Messages auto-cleanup after 7 days
+- Bot requires admin rights in groups for proper functionality
