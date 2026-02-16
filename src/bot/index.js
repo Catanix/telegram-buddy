@@ -22,7 +22,7 @@ initCommandsHandlersActions(bot);
 initBotCommandHandlers(bot);
 
 // Установка обработки всех актуальных действий
-initBotHandlersActions(bot);
+initBotHandlersActions(bot, bot);
 
 // Глобальный обработчик ошибок
 process.on('uncaughtException', (err) => {

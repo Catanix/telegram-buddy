@@ -136,12 +136,12 @@ export async function summaryHandler(ctx) {
             { reply_to_message_id: ctx.message.message_id }
         );
         
-        // Получаем последние 100 сообщений
+        // Получаем последние 100 сообщений (или сколько есть)
         const messages = await getGroupMessageHistory(ctx.chat.id, 100);
         
         if (!messages || messages.length === 0) {
             await ctx.deleteMessage(loadingMsg.message_id);
-            return ctx.reply('❌ Недостаточно сообщений для саммаризации.');
+            return ctx.reply('❌ Нет сохранённых сообщений для саммаризации.');
         }
         
         // Создаём саммаризацию через DeepSeek
@@ -151,7 +151,7 @@ export async function summaryHandler(ctx) {
         
         if (summary) {
             await ctx.reply(
-                `📋 *Саммаризация обсуждения*\n\n${summary}`,
+                `📋 *Саммаризация обсуждения* (${messages.length} сообщений)\n\n${summary}`,
                 { 
                     parse_mode: 'Markdown',
                     reply_to_message_id: ctx.message.message_id

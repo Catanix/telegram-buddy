@@ -4,11 +4,17 @@ import { registerYoutubeDownloadAction } from "./youtubeDownloadAction.js";
 import { registerGroupPermissionActions } from "./groupPermissionActions.js";
 import { saveGroupMessage } from '../../../services/db.js';
 import { isGroupAllowed, requestGroupAccess } from '../../../models/GroupPermissionsModel.js';
+import { config } from 'dotenv';
+
+config();
 
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 const ADMIN_USERNAME = process.env.AUTHORIZED_USERNAME;
 
-export const initBotHandlersActions = (bot) => {
+console.log(`[INIT] ADMIN_CHAT_ID loaded: ${ADMIN_CHAT_ID}`);
+console.log(`[INIT] ADMIN_USERNAME loaded: ${ADMIN_USERNAME}`);
+
+export const initBotHandlersActions = (bot, botInstance) => {
     // Обработка добавления бота в группу
     bot.on('new_chat_members', async (ctx) => {
         const newMembers = ctx.message.new_chat_members;
@@ -34,8 +40,11 @@ export const initBotHandlersActions = (bot) => {
                 // Отправляем запрос админу
                 if (ADMIN_CHAT_ID) {
                     try {
-                        await ctx.telegram.sendMessage(
-                            ADMIN_CHAT_ID,
+                        const adminChatId = parseInt(ADMIN_CHAT_ID, 10);
+                        console.log(`[DEBUG] Sending notification to admin chat: ${adminChatId}`);
+                        
+                        await botInstance.telegram.sendMessage(
+                            adminChatId,
                             `📢 Бота добавили в новую группу!\n\n` +
                             `Название: ${chatTitle}\n` +
                             `ID: ${chatId}\n` +
@@ -51,8 +60,10 @@ export const initBotHandlersActions = (bot) => {
                         );
                         console.log(`[NOTIFICATION SENT] Admin notified about group ${chatTitle}`);
                     } catch (e) {
-                        console.error('[NOTIFICATION ERROR] Failed to notify admin:', e);
+                        console.error('[NOTIFICATION ERROR] Failed to notify admin:', e.message);
                     }
+                } else {
+                    console.error('[NOTIFICATION ERROR] ADMIN_CHAT_ID not set');
                 }
                 
                 // Отвечаем в группу
