@@ -41,7 +41,9 @@ export async function isGroupAllowed(groupId) {
             `SELECT allowed FROM group_permissions WHERE group_id = ?`,
             [groupId]
         );
-        return row?.allowed === 1;
+        const isAllowed = row?.allowed == 1;  // Use == to handle both number 1 and string "1"
+        logger.info(`Checking group ${groupId}: allowed=${isAllowed} (row=${JSON.stringify(row)})`);
+        return isAllowed;
     } catch (error) {
         logger.error('Failed to check group permission:', error);
         return false;
