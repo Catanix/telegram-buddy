@@ -2,7 +2,7 @@ import { registerMusicActions } from "../commands/musicSearchHandler.js";
 import { textHandler } from "../textHandler.js";
 import { registerYoutubeDownloadAction } from "./youtubeDownloadAction.js";
 import { registerGroupPermissionActions } from "./groupPermissionActions.js";
-import { saveGroupMessage } from '../../services/db.js';
+import { saveGroupMessage } from '../../../services/db.js';
 
 export const initBotHandlersActions = (bot) => {
     // Обработка текстовых сообщений

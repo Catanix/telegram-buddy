@@ -1,5 +1,5 @@
-import { allowGroupAccess, denyGroupAccess } from '../../models/GroupPermissionsModel.js';
-import { isAdmin, getAdminChatId } from '../middleware/checkAccess.js';
+import { allowGroupAccess, denyGroupAccess } from '../../../models/GroupPermissionsModel.js';
+import { isAdmin, getAdminChatId } from '../../middleware/checkAccess.js';
 
 /**
  * Регистрация обработчиков для управления доступом к группам
