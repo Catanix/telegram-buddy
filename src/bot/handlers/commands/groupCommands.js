@@ -12,6 +12,8 @@ import fs from 'fs';
  * Работает с последней ссылкой в чате или с reply на сообщение со ссылкой
  */
 export async function unzipHandler(ctx) {
+    let loadingMsg = null;
+    
     try {
         let targetMessage = ctx.message;
         
@@ -33,7 +35,7 @@ export async function unzipHandler(ctx) {
             );
         }
         
-        const loadingMsg = await ctx.reply('⏳ Извлекаю контент...', {
+        loadingMsg = await ctx.reply('⏳ Извлекаю контент...', {
             reply_to_message_id: ctx.message.message_id
         });
         
@@ -50,7 +52,7 @@ export async function unzipHandler(ctx) {
             case 'youtube':
                 const videoInfo = await getVideoInfo(media.url);
                 if (videoInfo) {
-                    messageText = `🎬 *${videoInfo.title}*\n\n🔗 ${media.url}`;
+                    messageText = `🎬 ${videoInfo.title}\n\n🔗 ${media.url}`;
                 }
                 break;
             case 'x':
@@ -59,11 +61,10 @@ export async function unzipHandler(ctx) {
                     messageText = formatXMessage(tweetData);
                     
                     // Удаляем loading сообщение
-                    await ctx.deleteMessage(loadingMsg.message_id);
+                    await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
                     
                     // Отправляем текст
                     await ctx.reply(messageText, { 
-                        parse_mode: 'MarkdownV2',
                         reply_to_message_id: ctx.message.message_id
                     });
                     
@@ -85,12 +86,13 @@ export async function unzipHandler(ctx) {
                 }
                 break;
             default:
+                await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
                 return ctx.reply('❌ Неподдерживаемый тип ссылки.');
         }
         
         // Для TikTok и Instagram
         if (result && result.filePath) {
-            await ctx.deleteMessage(loadingMsg.message_id);
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             
             if (result.mediaType === 'video') {
                 await ctx.replyWithVideo(
@@ -106,9 +108,8 @@ export async function unzipHandler(ctx) {
             
             fs.unlinkSync(result.filePath);
         } else if (media.type === 'youtube' && messageText) {
-            await ctx.deleteMessage(loadingMsg.message_id);
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             await ctx.reply(messageText, { 
-                parse_mode: 'Markdown',
                 reply_to_message_id: ctx.message.message_id
             });
         } else {
@@ -117,12 +118,21 @@ export async function unzipHandler(ctx) {
                 loadingMsg.message_id,
                 null,
                 '❌ Не удалось загрузить контент.'
-            );
+            ).catch(() => {});
         }
         
     } catch (error) {
         console.error('[UnzipHandler Error]', error);
-        ctx.reply('❌ Ошибка при обработке запроса.');
+        if (loadingMsg) {
+            await ctx.telegram.editMessageText(
+                ctx.chat.id,
+                loadingMsg.message_id,
+                null,
+                '❌ Ошибка при обработке запроса.'
+            ).catch(() => {});
+        } else {
+            ctx.reply('❌ Ошибка при обработке запроса.');
+        }
     }
 }
 
@@ -130,8 +140,10 @@ export async function unzipHandler(ctx) {
  * Команда /summary - создаёт саммаризацию последних сообщений
  */
 export async function summaryHandler(ctx) {
+    let loadingMsg = null;
+    
     try {
-        const loadingMsg = await ctx.reply(
+        loadingMsg = await ctx.reply(
             '🧠 Анализирую последние сообщения...',
             { reply_to_message_id: ctx.message.message_id }
         );
@@ -140,17 +152,16 @@ export async function summaryHandler(ctx) {
         const messages = await getGroupMessageHistory(ctx.chat.id, 100);
         
         if (!messages || messages.length === 0) {
-            await ctx.deleteMessage(loadingMsg.message_id);
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             return ctx.reply('❌ Нет сохранённых сообщений для саммаризации.');
         }
         
         // Создаём саммаризацию через DeepSeek
         const summary = await summarizeMessages(messages);
         
-        await ctx.deleteMessage(loadingMsg.message_id);
+        await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
         
         if (summary) {
-            // Убираем parse_mode чтобы избежать ошибок с Markdown от DeepSeek
             await ctx.reply(
                 `📋 Саммаризация обсуждения (${messages.length} сообщений)\n\n${summary}`,
                 { 
@@ -163,6 +174,15 @@ export async function summaryHandler(ctx) {
         
     } catch (error) {
         console.error('[SummaryHandler Error]', error);
-        ctx.reply('❌ Ошибка при создании саммаризации.');
+        if (loadingMsg) {
+            await ctx.telegram.editMessageText(
+                ctx.chat.id,
+                loadingMsg.message_id,
+                null,
+                '❌ Ошибка при создании саммаризации.'
+            ).catch(() => {});
+        } else {
+            ctx.reply('❌ Ошибка при создании саммаризации.');
+        }
     }
 }
