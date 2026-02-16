@@ -1,4 +1,5 @@
 import { isGroupAllowed, requestGroupAccess, getGroupInfo } from '../../models/GroupPermissionsModel.js';
+import { saveGroupMessage } from '../../services/db.js';
 
 const ADMIN_USERNAME = process.env.AUTHORIZED_USERNAME;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID; // Для отправки запросов на разрешение
@@ -6,7 +7,7 @@ const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID; // Для отправки за
 /**
  * Middleware для проверки доступа
  * - В личных чатах: только ADMIN_USERNAME
- * - В группах: только если группа разрешена
+ * - В группах: сохраняем сообщения, но команды работают только если группа разрешена
  */
 export const checkAccess = (bot) => {
     bot.use(async (ctx, next) => {
@@ -28,6 +29,18 @@ export const checkAccess = (bot) => {
         if (chatType === 'group' || chatType === 'supergroup' || chatType === 'channel') {
             const isAllowed = await isGroupAllowed(String(chatId));
             
+            // Всегда сохраняем сообщения из групп (для саммаризации)
+            if (ctx.message?.text) {
+                await saveGroupMessage(
+                    chatId,
+                    ctx.message.message_id,
+                    ctx.from.id,
+                    ctx.from.username,
+                    ctx.from.first_name,
+                    ctx.message.text
+                );
+            }
+            
             if (!isAllowed) {
                 const groupInfo = await getGroupInfo(String(chatId));
                 
@@ -37,30 +50,38 @@ export const checkAccess = (bot) => {
                     
                     // Отправляем запрос админу
                     if (ADMIN_CHAT_ID) {
-                        await ctx.telegram.sendMessage(
-                            ADMIN_CHAT_ID,
-                            `📢 Бота добавили в новую группу!\n\n` +
-                            `Название: ${chatTitle}\n` +
-                            `ID: ${chatId}\n` +
-                            `Добавил: @${username || 'unknown'}`,
-                            {
-                                reply_markup: {
-                                    inline_keyboard: [[
-                                        { text: '✅ Разрешить', callback_data: `allow_group_${chatId}` },
-                                        { text: '❌ Отклонить', callback_data: `deny_group_${chatId}` }
-                                    ]]
+                        try {
+                            await bot.telegram.sendMessage(
+                                ADMIN_CHAT_ID,
+                                `📢 Бота добавили в новую группу!\n\n` +
+                                `Название: ${chatTitle}\n` +
+                                `ID: ${chatId}\n` +
+                                `Добавил: @${username || 'unknown'}`,
+                                {
+                                    reply_markup: {
+                                        inline_keyboard: [[
+                                            { text: '✅ Разрешить', callback_data: `allow_group_${chatId}` },
+                                            { text: '❌ Отклонить', callback_data: `deny_group_${chatId}` }
+                                        ]]
+                                    }
                                 }
-                            }
-                        );
+                            );
+                            console.log(`[NOTIFICATION] Sent to admin about group ${chatTitle}`);
+                        } catch (e) {
+                            console.error('[NOTIFICATION ERROR]', e.message);
+                        }
                     }
                     
                     await ctx.reply(
                         `👋 Привет! Я бот для извлечения контента из социальных сетей.\n\n` +
-                        `⏳ Ожидайте разрешения администратора на использование в этой группе.`
+                        `⏳ Ожидайте разрешения администратора @${ADMIN_USERNAME} на использование в этой группе.`
                     );
                 }
                 
-                return;
+                // Блокируем только команды, обычные сообщения пропускаем (уже сохранены)
+                if (ctx.message?.text?.startsWith('/')) {
+                    return; // Блокируем команды в неразрешённой группе
+                }
             }
             
             return next();
