@@ -24,7 +24,9 @@ function logMiddleware(ctx, next) {
     const username = ctx.from?.username || 'unknown';
     const text = ctx.message?.text || ctx.callbackQuery?.data || '[no text]';
     
-    logger.debug(`Update: ${chatType} ${chatId} @${username}: ${text.substring(0, 50)}`);
+    // Force console.log for debugging
+    console.log(`[DEBUG] Got message: ${text.substring(0, 30)} from @${username} in ${chatId}`);
+    
     return next();
 }
 
@@ -59,7 +61,7 @@ async function accessControlMiddleware(ctx, next) {
                     ctx.from.first_name, 
                     ctx.message.text
                 );
-                logger.debug(`Saved message from ${chatId}: ${ctx.message.text.substring(0, 30)}`);
+                logger.info(`Saved message from ${chatId}: ${ctx.message.text.substring(0, 30)}`);
             } catch (error) {
                 logger.error('Failed to save group message:', error);
             }

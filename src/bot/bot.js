@@ -24,6 +24,27 @@ export function createBot() {
         }
     });
 
+    // PRE-MIDDLEWARE: Save all messages first (before any command processing)
+    bot.on('message', async (ctx, next) => {
+        if (ctx.message?.text && (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup')) {
+            try {
+                const { saveGroupMessage } = await import('../services/database/messages.js');
+                await saveGroupMessage(
+                    ctx.chat.id,
+                    ctx.message.message_id,
+                    ctx.from.id,
+                    ctx.from.username,
+                    ctx.from.first_name,
+                    ctx.message.text
+                );
+                console.log(`[SAVED] Message to group ${ctx.chat.id}`);
+            } catch (err) {
+                console.error('[SAVE ERROR]', err.message);
+            }
+        }
+        return next();
+    });
+    
     // MIDDLEWARE FIRST - before commands!
     initMiddleware(bot);
     

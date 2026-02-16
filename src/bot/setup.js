@@ -28,11 +28,10 @@ export function initCommands(bot) {
  * @param {Telegraf} bot 
  */
 export function initHandlers(bot) {
-    // Text handler for auto-downloads (private chats only)
-    bot.on('text', textHandler);
-    
     // Initialize group-related handlers (my_chat_member, etc.)
     initGroupHandlers(bot);
+    
+    // NOTE: textHandler removed - auto-download logic moved to middleware
     
     logger.info('Handlers initialized');
 }
