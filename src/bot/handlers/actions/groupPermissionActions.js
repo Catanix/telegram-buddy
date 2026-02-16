@@ -30,9 +30,10 @@ export function registerGroupPermissionActions(bot) {
                 console.error('[GroupPermission] Failed to notify group:', e);
             }
             
-            // Обновляем сообщение админу
+            // Обновляем сообщение админу и убираем кнопки
             await ctx.editMessageText(
-                ctx.callbackQuery.message.text + '\n\n✅ ГРУППА РАЗРЕШЕНА'
+                ctx.callbackQuery.message.text + '\n\n✅ ГРУППА РАЗРЕШЕНА',
+                { reply_markup: { inline_keyboard: [] } }
             );
             await ctx.answerCbQuery('Группа разрешена');
             
@@ -64,9 +65,10 @@ export function registerGroupPermissionActions(bot) {
                 console.error('[GroupPermission] Failed to notify group:', e);
             }
             
-            // Обновляем сообщение админу
+            // Обновляем сообщение админу и убираем кнопки
             await ctx.editMessageText(
-                ctx.callbackQuery.message.text + '\n\n❌ ГРУППА ОТКЛОНЕНА'
+                ctx.callbackQuery.message.text + '\n\n❌ ГРУППА ОТКЛОНЕНА',
+                { reply_markup: { inline_keyboard: [] } }
             );
             await ctx.answerCbQuery('Группа отклонена');
             
