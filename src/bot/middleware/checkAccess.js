@@ -78,12 +78,18 @@ export const checkAccess = (bot) => {
                     );
                 }
                 
-                // Блокируем только команды, обычные сообщения пропускаем (уже сохранены)
+                // Блокируем только команды, обычные сообщения пропускаем для обработки ссылок
                 if (ctx.message?.text?.startsWith('/')) {
+                    console.log(`[BLOCKED] Command ${ctx.message.text} in non-allowed group ${chatId}`);
                     return; // Блокируем команды в неразрешённой группе
                 }
+                
+                // Обычные сообщения пропускаем (для скачивания медиа)
+                return next();
             }
             
+            // Группа разрешена - пропускаем всё
+            console.log(`[ALLOWED] Access granted for group ${chatId}`);
             return next();
         }
 
