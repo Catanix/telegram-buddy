@@ -38,6 +38,7 @@ data/db/*.db
 # Test files
 test-*.mjs
 test-*.js
+*-player-script.js
 
 # Build outputs
 dist/
