@@ -90,13 +90,26 @@ export async function getStats(userId) {
     }
 }
 
-// 💬 Сохранение сообщения группы
+// 💬 Сохранение сообщения группы (храним только последние 100)
 export async function saveGroupMessage(groupId, messageId, userId, username, firstName, text) {
     try {
         await db.run(
             `INSERT INTO group_messages (group_id, message_id, user_id, username, first_name, text)
              VALUES (?, ?, ?, ?, ?, ?)`,
             [String(groupId), messageId, userId, username, firstName, text]
+        );
+        
+        // Удаляем старые сообщения, оставляем только последние 100 для этой группы
+        await db.run(
+            `DELETE FROM group_messages 
+             WHERE group_id = ? 
+             AND id NOT IN (
+                 SELECT id FROM group_messages 
+                 WHERE group_id = ? 
+                 ORDER BY created_at DESC 
+                 LIMIT 100
+             )`,
+            [String(groupId), String(groupId)]
         );
     } catch (error) {
         console.error('[DB] Failed to save group message:', error);

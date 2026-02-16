@@ -150,10 +150,10 @@ export async function summaryHandler(ctx) {
         await ctx.deleteMessage(loadingMsg.message_id);
         
         if (summary) {
+            // Убираем parse_mode чтобы избежать ошибок с Markdown от DeepSeek
             await ctx.reply(
-                `📋 *Саммаризация обсуждения* (${messages.length} сообщений)\n\n${summary}`,
+                `📋 Саммаризация обсуждения (${messages.length} сообщений)\n\n${summary}`,
                 { 
-                    parse_mode: 'Markdown',
                     reply_to_message_id: ctx.message.message_id
                 }
             );
