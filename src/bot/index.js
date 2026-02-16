@@ -1,17 +1,16 @@
 import { Telegraf } from 'telegraf';
 import { config } from 'dotenv';
 import { setActualCommandList } from "../utils/commandList.js";
-import { checkUserIsTrusted } from "./middleware/checkUserIsTrusted.js";
+import { checkAccess } from "./middleware/checkAccess.js";
 import { initBotHandlersActions, initBotCommandHandlers } from "./handlers/index.js";
 import { initCommandsHandlersActions } from "./handlers/commands/index.js";
 
 config();
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-const authorizedUsername = process.env.AUTHORIZED_USERNAME;
 
-// Middleware: проверка username
-checkUserIsTrusted(bot, authorizedUsername);
+// Middleware: проверка доступа (личный чат - только админ, группы - только разрешённые)
+checkAccess(bot);
 
 // Установка актуального листа команд
 setActualCommandList(bot);
@@ -38,9 +37,13 @@ process.on('unhandledRejection', (reason, promise) => {
 export async function startBot() {
     try {
         await bot.launch();
-        console.log('Бот успешно запущен');
+        console.log('✅ Бот успешно запущен');
+        
+        // Graceful stop
+        process.once('SIGINT', () => bot.stop('SIGINT'));
+        process.once('SIGTERM', () => bot.stop('SIGTERM'));
     } catch (error) {
-        console.error('Ошибка при запуске бота:', error);
+        console.error('❌ Ошибка при запуске бота:', error);
         throw error;
     }
 }
