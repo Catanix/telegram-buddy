@@ -22,18 +22,6 @@ export async function initDB() {
             driver: sqlite3.Database,
         });
 
-        // ✅ Создаём таблицу tasks, если её нет
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id INTEGER,
-                text TEXT,
-                remind_at TEXT,
-                created_at TEXT,
-                notified INTEGER DEFAULT 0
-            );
-        `);
-
         // ✅ Создаём таблицу user_stats для статистики
         await db.exec(`
             CREATE TABLE IF NOT EXISTS user_stats (
@@ -43,6 +31,35 @@ export async function initDB() {
                 PRIMARY KEY (user_id, service)
             );
         `);
+
+        // ✅ Создаём таблицу group_permissions для управления доступом к группам
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS group_permissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id TEXT UNIQUE NOT NULL,
+                group_name TEXT,
+                allowed BOOLEAN DEFAULT 0,
+                requested_by TEXT,
+                requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                allowed_at DATETIME
+            );
+        `);
+
+        // ✅ Создаём таблицу для истории сообщений групп
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS group_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id TEXT NOT NULL,
+                message_id INTEGER NOT NULL,
+                user_id INTEGER,
+                username TEXT,
+                first_name TEXT,
+                text TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        console.log('✅ Database initialized successfully');
     } catch (error) {
         console.error('❌ Failed to initialize database:', error);
         process.exit(1);
@@ -71,4 +88,51 @@ export async function getStats(userId) {
         console.error(`❌ Failed to get stats for user ${userId}:`, error);
         return [];
     }
+}
+
+// 💬 Сохранение сообщения группы
+export async function saveGroupMessage(groupId, messageId, userId, username, firstName, text) {
+    try {
+        await db.run(
+            `INSERT INTO group_messages (group_id, message_id, user_id, username, first_name, text)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [String(groupId), messageId, userId, username, firstName, text]
+        );
+    } catch (error) {
+        console.error('[DB] Failed to save group message:', error);
+    }
+}
+
+// 📜 Получение истории сообщений группы
+export async function getGroupMessageHistory(groupId, limit = 100) {
+    try {
+        return await db.all(
+            `SELECT username, first_name, text, created_at 
+             FROM group_messages 
+             WHERE group_id = ? 
+             ORDER BY created_at DESC 
+             LIMIT ?`,
+            [String(groupId), limit]
+        );
+    } catch (error) {
+        console.error('[DB] Failed to get group message history:', error);
+        return [];
+    }
+}
+
+// 🧹 Очистка старых сообщений (старше 7 дней)
+export async function cleanupOldMessages() {
+    try {
+        await db.run(
+            `DELETE FROM group_messages WHERE created_at < datetime('now', '-7 days')`
+        );
+        console.log('[DB] Old messages cleaned up');
+    } catch (error) {
+        console.error('[DB] Failed to cleanup old messages:', error);
+    }
+}
+
+// Получение объекта БД для других модулей
+export async function getDB() {
+    return db;
 }
