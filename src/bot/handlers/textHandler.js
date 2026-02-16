@@ -11,19 +11,20 @@ import { downloadXMedia, downloadXMediaFile, formatXMessage } from '../../servic
 export async function textHandler(ctx) {
     try {
         const text = ctx.message.text;
-        const chatId = ctx.chat.id;
-        const username = ctx.from?.username || 'unknown';
 
         // Skip command messages
         if (text.startsWith('/')) {
             return;
         }
 
-        // Check if the message contains a media link
-        const media = extractMediaUrls(text);
+        // В группах авто-распаковка отключена - только по команде /unzip
+        if (ctx.chat.type !== 'private') {
+            return;
+        }
 
+        // В личных чатах - авто-распаковка
+        const media = extractMediaUrls(text);
         if (media && media.url.length > 0) {
-            console.log(`[AUTO EXTRACT] Link from @${username} in ${chatId}: ${media.type}`);
             await handleMedia(ctx, media);
         }
 
