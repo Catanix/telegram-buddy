@@ -8,18 +8,18 @@ import { incrementStats } from '../../services/db.js';
 import { getVideoInfo } from "../../services/media/youtube.js";
 import { downloadXMedia, downloadXMediaFile, formatXMessage } from '../../services/media/x.js';
 
-export async function textHandler(ctx) {
+export async function textHandler(ctx, next) {
     try {
         const text = ctx.message.text;
 
-        // Skip command messages
+        // Skip command messages - pass to next handler
         if (text.startsWith('/')) {
-            return;
+            return next();
         }
 
-        // В группах авто-распаковка отключена - только по команде /unzip
+        // В группах авто-распаковка отключена - pass to next handler
         if (ctx.chat.type !== 'private') {
-            return;
+            return next();
         }
 
         // В личных чатах - авто-распаковка
@@ -27,9 +27,13 @@ export async function textHandler(ctx) {
         if (media && media.url.length > 0) {
             await handleMedia(ctx, media);
         }
+        
+        // Always continue to next handler
+        return next();
 
     } catch (error) {
         console.error('[TextHandler Error]', error);
+        return next();
     }
 }
 

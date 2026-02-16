@@ -49,14 +49,20 @@ export async function saveGroupMessage(groupId, messageId, userId, username, fir
 export async function getRecentMessages(groupId, limit = 100) {
     const db = getDatabase();
     if (!db) {
+        logger.error('Database not initialized in getRecentMessages');
         throw new Error('Database not initialized');
     }
 
-    return db.all(
+    logger.info(`Querying messages for group ${groupId}`);
+    
+    const result = await db.all(
         `SELECT * FROM group_messages 
          WHERE group_id = ? 
          ORDER BY created_at DESC 
          LIMIT ?`,
         [String(groupId), limit]
     );
+    
+    logger.info(`Found ${result?.length || 0} messages`);
+    return result;
 }

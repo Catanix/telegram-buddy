@@ -144,19 +144,15 @@ export async function summaryHandler(ctx) {
         // Get recent messages
         const messages = await getRecentMessages(chatId, 100);
         
-        if (!messages || messages.length === 0) {
+        logger.info(`Retrieved ${messages?.length || 0} messages for summary`);
+        
+        if (!Array.isArray(messages) || messages.length === 0) {
             await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             return ctx.reply('❌ Нет сохранённых сообщений для саммаризации.');
         }
         
-        // Format messages for summarization
-        const formattedMessages = messages
-            .reverse()
-            .map(m => `${m.username || m.first_name}: ${m.text}`)
-            .join('\n');
-        
-        // Get summary
-        const summary = await summarizeMessages(formattedMessages);
+        // Get summary (pass messages array, not formatted string)
+        const summary = await summarizeMessages(messages);
         
         await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
         
