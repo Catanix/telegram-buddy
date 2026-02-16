@@ -15,25 +15,43 @@ export async function unzipHandler(ctx) {
     let loadingMsg = null;
     
     try {
+        // Получаем текст команды после /unzip или /unzip@botname
+        const messageText = ctx.message.text || '';
+        const commandArgs = messageText.replace(/\/unzip(@\w+)?/, '').trim();
+        
         let targetMessage = ctx.message;
+        let text = '';
         
         // Если команда в reply на другое сообщение - берём то сообщение
         if (ctx.message.reply_to_message) {
+            console.log('[UNZIP] Reply detected, using replied message');
             targetMessage = ctx.message.reply_to_message;
+            text = targetMessage.text || targetMessage.caption || '';
+        } else if (commandArgs) {
+            // Если есть аргументы после команды (ссылка в том же сообщении)
+            console.log('[UNZIP] Using command args:', commandArgs);
+            text = commandArgs;
+        } else {
+            // Ищем в последних сообщениях чата
+            console.log('[UNZIP] No reply and no args, searching recent messages...');
+            text = targetMessage.text || targetMessage.caption || '';
         }
         
-        const text = targetMessage.text || targetMessage.caption || '';
+        console.log('[UNZIP] Extracting from text:', text.substring(0, 100));
         const media = extractMediaUrls(text);
         
         if (!media || media.url.length === 0) {
+            console.log('[UNZIP] No media URL found in text');
             return ctx.reply(
                 '❌ Не нашёл ссылку на поддерживаемый контент.\n\n' +
                 'Использование:\n' +
                 '• Ответьте /unzip на сообщение со ссылкой\n' +
-                '• Или просто отправьте /unzip после сообщения со ссылкой',
+                '• Или отправьте /unzip <ссылка>',
                 { reply_to_message_id: ctx.message.message_id }
             );
         }
+        
+        console.log('[UNZIP] Found media:', media.type, media.url);
         
         loadingMsg = await ctx.reply('⏳ Извлекаю контент...', {
             reply_to_message_id: ctx.message.message_id
