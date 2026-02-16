@@ -1,4 +1,4 @@
-import { isGroupAllowed, requestGroupAccess, getGroupInfo } from '../models/GroupPermissionsModel.js';
+import { isGroupAllowed, requestGroupAccess, getGroupInfo } from '../../models/GroupPermissionsModel.js';
 
 const ADMIN_USERNAME = process.env.AUTHORIZED_USERNAME;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID; // Для отправки запросов на разрешение
