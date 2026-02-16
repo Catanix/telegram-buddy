@@ -12,7 +12,7 @@ export const initCommandsHandlersActions = (bot) => {
 
 export const initBotCommandHandlers = (bot) => {
     // Обработка команды /start
-    bot.command('start', (ctx) => {
+    bot.command(['start', 'start@catanix_home_bot'], (ctx) => {
         const isGroup = ctx.chat.type !== 'private';
         
         if (isGroup) {
@@ -36,21 +36,21 @@ export const initBotCommandHandlers = (bot) => {
     });
 
     // Обработка команды /stats
-    bot.command('stats', (ctx) => {
+    bot.command(['stats', 'stats@catanix_home_bot'], (ctx) => {
         return statsHandler(ctx);
     });
 
     // Обработка команды поиска музыки /music
-    bot.command('music', (ctx) => {
+    bot.command(['music', 'music@catanix_home_bot'], (ctx) => {
         return musicSearchHandler(ctx);
     });
     
-    // Групповые команды
-    bot.command('unzip', (ctx) => {
+    // Групповые команды - поддержка с @username
+    bot.command(['unzip', 'unzip@catanix_home_bot'], (ctx) => {
         return unzipHandler(ctx);
     });
     
-    bot.command('summary', (ctx) => {
+    bot.command(['summary', 'summary@catanix_home_bot'], (ctx) => {
         return summaryHandler(ctx);
     });
 };
