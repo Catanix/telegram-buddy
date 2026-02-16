@@ -11,21 +11,30 @@ import { downloadXMedia, downloadXMediaFile, formatXMessage } from '../../servic
 export async function textHandler(ctx, next) {
     try {
         const text = ctx.message.text;
+        console.log(`[TEXT HANDLER] Got text: ${text.substring(0, 50)}`);
 
         // Skip command messages - pass to next handler
         if (text.startsWith('/')) {
+            console.log('[TEXT HANDLER] Skipping command');
             return next();
         }
 
         // В группах авто-распаковка отключена - pass to next handler
         if (ctx.chat.type !== 'private') {
+            console.log('[TEXT HANDLER] Skipping group chat');
             return next();
         }
 
         // В личных чатах - авто-распаковка
+        console.log('[TEXT HANDLER] Extracting media...');
         const media = extractMediaUrls(text);
+        console.log(`[TEXT HANDLER] Media found: ${JSON.stringify(media)}`);
+        
         if (media && media.url.length > 0) {
+            console.log(`[TEXT HANDLER] Processing ${media.type}...`);
             await handleMedia(ctx, media);
+        } else {
+            console.log('[TEXT HANDLER] No media found');
         }
         
         // Always continue to next handler

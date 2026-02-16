@@ -39,11 +39,28 @@ async function accessControlMiddleware(ctx, next) {
     const chatId = ctx.chat?.id;
     const chatTitle = ctx.chat?.title;
 
-    // Private chats - admin only
+    // Private chats - admin only + auto-download
     if (chatType === 'private') {
         if (username !== CONFIG.adminUsername) {
             logger.warn(`Unauthorized access attempt by @${username}`);
             return ctx.reply('❌ У вас нет доступа к этому боту.');
+        }
+        // Admin allowed - handle auto-download
+        if (ctx.message?.text && !ctx.message.text.startsWith('/')) {
+            try {
+                const { extractMediaUrls } = await import('../utils/extractUrl.js');
+                const { downloadInstagramMedia } = await import('../services/media/instagram.js');
+                const { downloadTikTokMedia } = await import('../services/media/tiktok.js');
+                const { getVideoInfo } = await import('../services/media/youtube.js');
+                const { downloadXMedia, formatXMessage } = await import('../services/media/x.js');
+                const media = extractMediaUrls(ctx.message.text);
+                if (media?.url) {
+                    console.log(`[AUTO DOWNLOAD] ${media.type} for admin`);
+                    // Download logic here
+                }
+            } catch (e) {
+                console.error('[AUTO DOWNLOAD ERROR]', e);
+            }
         }
         return next();
     }
