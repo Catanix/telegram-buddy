@@ -1,25 +1,38 @@
-import { registerMusicActions } from "../commands/musicSearchHandler.js";
-import { textHandler } from "../textHandler.js";
-import { registerYoutubeDownloadAction } from "./youtubeDownloadAction.js";
-import { registerGroupPermissionActions } from "./groupPermissionActions.js";
-import { isGroupAllowed, requestGroupAccess } from '../../../models/GroupPermissionsModel.js';
-import { config } from 'dotenv';
+import { logger } from '../../../utils/logger.js';
+import { CONFIG } from '../../../config/index.js';
+import * as groupPermissions from '../../../services/groupPermissions.js';
+import { registerMusicActions } from '../commands/musicSearchHandler.js';
+import { registerYoutubeDownloadAction } from './youtubeDownloadAction.js';
+import { registerGroupPermissionActions } from './groupPermissionActions.js';
 
-config();
-
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
-const ADMIN_USERNAME = process.env.AUTHORIZED_USERNAME;
-
-console.log(`[INIT] ADMIN_CHAT_ID loaded: ${ADMIN_CHAT_ID}`);
-console.log(`[INIT] ADMIN_USERNAME loaded: ${ADMIN_USERNAME}`);
-
-export const initBotHandlersActions = (bot, botInstance) => {
-    // Обработка добавления бота в группу
+/**
+ * Initialize group-related handlers
+ * @param {Telegraf} bot 
+ */
+export function initGroupHandlers(bot) {
+    // Bot added to group via my_chat_member
+    bot.on('my_chat_member', async (ctx) => {
+        const oldStatus = ctx.myChatMember?.old_chat_member?.status;
+        const newStatus = ctx.myChatMember?.new_chat_member?.status;
+        
+        // Bot was added to group
+        if ((oldStatus === 'left' || oldStatus === 'kicked') && 
+            (newStatus === 'member' || newStatus === 'administrator')) {
+            
+            const chatId = ctx.chat.id;
+            const chatTitle = ctx.chat.title || 'Группа';
+            const addedBy = ctx.from?.username || ctx.from?.first_name || 'unknown';
+            
+            logger.info(`Bot added to group: ${chatTitle} (${chatId}) by @${addedBy}`);
+            await handleBotAdded(bot, chatId, chatTitle, addedBy, ctx);
+        }
+    });
+    
+    // Fallback: new_chat_members
     bot.on('new_chat_members', async (ctx) => {
         const newMembers = ctx.message.new_chat_members;
         const botInfo = await ctx.telegram.getMe();
         
-        // Проверяем, добавлен ли именно наш бот
         const botAdded = newMembers.some(member => member.id === botInfo.id);
         
         if (botAdded) {
@@ -27,66 +40,68 @@ export const initBotHandlersActions = (bot, botInstance) => {
             const chatTitle = ctx.chat.title || 'Группа';
             const addedBy = ctx.from?.username || ctx.from?.first_name || 'unknown';
             
-            console.log(`[BOT ADDED TO GROUP] ${chatTitle} (${chatId}) by @${addedBy}`);
-            
-            // Проверяем, разрешена ли группа
-            const isAllowed = await isGroupAllowed(String(chatId));
-            
-            if (!isAllowed) {
-                // Запрашиваем доступ
-                await requestGroupAccess(String(chatId), chatTitle, addedBy);
-                
-                // Отправляем запрос админу
-                if (ADMIN_CHAT_ID) {
-                    try {
-                        const adminChatId = parseInt(ADMIN_CHAT_ID, 10);
-                        console.log(`[DEBUG] Sending notification to admin chat: ${adminChatId}`);
-                        
-                        await botInstance.telegram.sendMessage(
-                            adminChatId,
-                            `📢 Бота добавили в новую группу!\n\n` +
-                            `Название: ${chatTitle}\n` +
-                            `ID: ${chatId}\n` +
-                            `Добавил: @${addedBy}`,
-                            {
-                                reply_markup: {
-                                    inline_keyboard: [[
-                                        { text: '✅ Разрешить', callback_data: `allow_group_${chatId}` },
-                                        { text: '❌ Отклонить', callback_data: `deny_group_${chatId}` }
-                                    ]]
-                                }
-                            }
-                        );
-                        console.log(`[NOTIFICATION SENT] Admin notified about group ${chatTitle}`);
-                    } catch (e) {
-                        console.error('[NOTIFICATION ERROR] Failed to notify admin:', e.message);
-                    }
-                } else {
-                    console.error('[NOTIFICATION ERROR] ADMIN_CHAT_ID not set');
-                }
-                
-                // Отвечаем в группу
-                await ctx.reply(
-                    `👋 Привет! Я бот для извлечения контента из социальных сетей.\n\n` +
-                    `⏳ Ожидайте разрешения администратора @${ADMIN_USERNAME} на использование в этой группе.`
-                );
-            } else {
-                // Группа уже разрешена
-                await ctx.reply(
-                    `👋 Привет! Я снова здесь.\n\n` +
-                    `📋 Доступные команды:\n` +
-                    `/unzip - извлечь контент по ссылке\n` +
-                    `/summary - саммаризация обсуждения`
-                );
-            }
+            logger.info(`Bot added via new_chat_members: ${chatTitle} (${chatId})`);
+            await handleBotAdded(bot, chatId, chatTitle, addedBy, ctx);
         }
     });
-
-    // Обработка текстовых сообщений
-    bot.on('text', textHandler);
     
-    // Регистрация действий
+    // Register other actions
     registerMusicActions(bot);
     registerYoutubeDownloadAction(bot);
-    registerGroupPermissionActions(bot); // Для управления доступом к группам
-};
+    registerGroupPermissionActions(bot);
+}
+
+/**
+ * Handle bot being added to a group
+ */
+async function handleBotAdded(bot, chatId, chatTitle, addedBy, ctx) {
+    const isAllowed = await groupPermissions.isGroupAllowed(String(chatId));
+    
+    if (!isAllowed) {
+        // Request access
+        await groupPermissions.requestGroupAccess(String(chatId), chatTitle, addedBy);
+        
+        // Notify admin
+        try {
+            await bot.telegram.sendMessage(
+                CONFIG.adminChatId,
+                `📢 Бота добавили в новую группу!\n\n` +
+                `Название: ${chatTitle}\n` +
+                `ID: ${chatId}\n` +
+                `Добавил: @${addedBy}`,
+                {
+                    reply_markup: {
+                        inline_keyboard: [[
+                            { text: '✅ Разрешить', callback_data: `allow_group_${chatId}` },
+                            { text: '❌ Отклонить', callback_data: `deny_group_${chatId}` }
+                        ]]
+                    }
+                }
+            );
+        } catch (error) {
+            logger.error('Failed to notify admin:', error);
+        }
+        
+        // Reply in group
+        try {
+            await ctx.reply(
+                `👋 Привет! Я бот для извлечения контента из социальных сетей.\n\n` +
+                `⏳ Ожидайте разрешения администратора @${CONFIG.adminUsername} на использование в этой группе.`
+            );
+        } catch (error) {
+            logger.error('Failed to reply in group:', error);
+        }
+    } else {
+        // Group already allowed
+        try {
+            await ctx.reply(
+                `👋 Привет! Я снова здесь.\n\n` +
+                `📋 Доступные команды:\n` +
+                `/unzip - извлечь контент по ссылке\n` +
+                `/summary - саммаризация обсуждения`
+            );
+        } catch (error) {
+            logger.error('Failed to reply in group:', error);
+        }
+    }
+}

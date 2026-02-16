@@ -1,47 +1,41 @@
+import fs from 'fs';
 import { extractMediaUrls } from '../../../utils/extractUrl.js';
 import { downloadTikTokMedia } from '../../../services/media/tiktok.js';
 import { downloadInstagramMedia } from '../../../services/media/instagram.js';
 import { getVideoInfo } from '../../../services/media/youtube.js';
 import { downloadXMedia, downloadXMediaFile, formatXMessage } from '../../../services/media/x.js';
-import { getGroupMessageHistory } from '../../../services/db.js';
+import { getRecentMessages } from '../../../services/database/index.js';
 import { summarizeMessages } from '../../../services/api/summarize.js';
-import fs from 'fs';
+import { logger } from '../../../utils/logger.js';
 
 /**
- * Команда /unzip - извлекает контент по ссылке
- * Работает с последней ссылкой в чате или с reply на сообщение со ссылкой
+ * /unzip command - extract content from social media links
+ * @param {Context} ctx 
  */
 export async function unzipHandler(ctx) {
     let loadingMsg = null;
     
     try {
-        // Получаем текст команды после /unzip или /unzip@botname
         const messageText = ctx.message.text || '';
         const commandArgs = messageText.replace(/\/unzip(@\w+)?/, '').trim();
         
         let targetMessage = ctx.message;
         let text = '';
         
-        // Если команда в reply на другое сообщение - берём то сообщение
+        // Check if replying to another message
         if (ctx.message.reply_to_message) {
-            console.log('[UNZIP] Reply detected, using replied message');
             targetMessage = ctx.message.reply_to_message;
             text = targetMessage.text || targetMessage.caption || '';
         } else if (commandArgs) {
-            // Если есть аргументы после команды (ссылка в том же сообщении)
-            console.log('[UNZIP] Using command args:', commandArgs);
             text = commandArgs;
         } else {
-            // Ищем в последних сообщениях чата
-            console.log('[UNZIP] No reply and no args, searching recent messages...');
             text = targetMessage.text || targetMessage.caption || '';
         }
         
-        console.log('[UNZIP] Extracting from text:', text.substring(0, 100));
+        logger.debug(`Unzip: extracting from "${text.substring(0, 50)}"`);
         const media = extractMediaUrls(text);
         
-        if (!media || media.url.length === 0) {
-            console.log('[UNZIP] No media URL found in text');
+        if (!media || !media.url) {
             return ctx.reply(
                 '❌ Не нашёл ссылку на поддерживаемый контент.\n\n' +
                 'Использование:\n' +
@@ -51,14 +45,12 @@ export async function unzipHandler(ctx) {
             );
         }
         
-        console.log('[UNZIP] Found media:', media.type, media.url);
-        
         loadingMsg = await ctx.reply('⏳ Извлекаю контент...', {
             reply_to_message_id: ctx.message.message_id
         });
         
         let result;
-        let messageText = '';
+        let responseText = '';
         
         switch (media.type) {
             case 'tiktok':
@@ -70,33 +62,26 @@ export async function unzipHandler(ctx) {
             case 'youtube':
                 const videoInfo = await getVideoInfo(media.url);
                 if (videoInfo) {
-                    messageText = `🎬 ${videoInfo.title}\n\n🔗 ${media.url}`;
+                    responseText = `🎬 ${videoInfo.title}\n\n🔗 ${media.url}`;
                 }
                 break;
             case 'x':
                 const tweetData = await downloadXMedia(media.url);
                 if (tweetData && !tweetData.error) {
-                    messageText = formatXMessage(tweetData);
-                    
-                    // Удаляем loading сообщение
+                    responseText = formatXMessage(tweetData);
                     await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
+                    await ctx.reply(responseText, { reply_to_message_id: ctx.message.message_id });
                     
-                    // Отправляем текст
-                    await ctx.reply(messageText, { 
-                        reply_to_message_id: ctx.message.message_id
-                    });
-                    
-                    // Отправляем медиа если есть
-                    if (tweetData.media && tweetData.media.length > 0) {
+                    if (tweetData.media?.length > 0) {
                         for (const item of tweetData.media) {
-                            const downloadedMedia = await downloadXMediaFile(item.url, item.type);
-                            if (downloadedMedia && downloadedMedia.filePath) {
-                                if (downloadedMedia.mediaType === 'video') {
-                                    await ctx.replyWithVideo({ source: downloadedMedia.filePath });
+                            const downloaded = await downloadXMediaFile(item.url, item.type);
+                            if (downloaded?.filePath) {
+                                if (downloaded.mediaType === 'video') {
+                                    await ctx.replyWithVideo({ source: downloaded.filePath });
                                 } else {
-                                    await ctx.replyWithPhoto({ source: downloadedMedia.filePath });
+                                    await ctx.replyWithPhoto({ source: downloaded.filePath });
                                 }
-                                fs.unlinkSync(downloadedMedia.filePath);
+                                fs.unlinkSync(downloaded.filePath);
                             }
                         }
                     }
@@ -108,8 +93,8 @@ export async function unzipHandler(ctx) {
                 return ctx.reply('❌ Неподдерживаемый тип ссылки.');
         }
         
-        // Для TikTok и Instagram
-        if (result && result.filePath) {
+        // Handle TikTok and Instagram
+        if (result?.filePath) {
             await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             
             if (result.mediaType === 'video') {
@@ -125,82 +110,71 @@ export async function unzipHandler(ctx) {
             }
             
             fs.unlinkSync(result.filePath);
-        } else if (media.type === 'youtube' && messageText) {
+        } else if (media.type === 'youtube' && responseText) {
             await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
-            await ctx.reply(messageText, { 
-                reply_to_message_id: ctx.message.message_id
-            });
+            await ctx.reply(responseText, { reply_to_message_id: ctx.message.message_id });
         } else {
-            await ctx.telegram.editMessageText(
-                ctx.chat.id,
-                loadingMsg.message_id,
-                null,
-                '❌ Не удалось загрузить контент.'
-            ).catch(() => {});
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
+            await ctx.reply('❌ Не удалось извлечь контент.').catch(() => {});
         }
         
     } catch (error) {
-        console.error('[UnzipHandler Error]', error);
+        logger.error('Unzip error:', error);
         if (loadingMsg) {
-            await ctx.telegram.editMessageText(
-                ctx.chat.id,
-                loadingMsg.message_id,
-                null,
-                '❌ Ошибка при обработке запроса.'
-            ).catch(() => {});
-        } else {
-            ctx.reply('❌ Ошибка при обработке запроса.');
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
         }
+        await ctx.reply('❌ Ошибка при извлечении контента.').catch(() => {});
     }
 }
 
 /**
- * Команда /summary - создаёт саммаризацию последних сообщений
+ * /summary command - summarize recent messages
+ * @param {Context} ctx 
  */
 export async function summaryHandler(ctx) {
     let loadingMsg = null;
     
     try {
-        loadingMsg = await ctx.reply(
-            '🧠 Анализирую последние сообщения...',
-            { reply_to_message_id: ctx.message.message_id }
-        );
+        const chatId = ctx.chat.id;
         
-        // Получаем последние 100 сообщений (или сколько есть)
-        const messages = await getGroupMessageHistory(ctx.chat.id, 100);
+        loadingMsg = await ctx.reply('⏳ Анализирую сообщения...', {
+            reply_to_message_id: ctx.message.message_id
+        });
+        
+        // Get recent messages
+        const messages = await getRecentMessages(chatId, 100);
         
         if (!messages || messages.length === 0) {
             await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             return ctx.reply('❌ Нет сохранённых сообщений для саммаризации.');
         }
         
-        // Создаём саммаризацию через DeepSeek
-        const summary = await summarizeMessages(messages);
+        // Format messages for summarization
+        const formattedMessages = messages
+            .reverse()
+            .map(m => `${m.username || m.first_name}: ${m.text}`)
+            .join('\n');
+        
+        // Get summary
+        const summary = await summarizeMessages(formattedMessages);
         
         await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
         
         if (summary) {
-            await ctx.reply(
-                `📋 Саммаризация обсуждения (${messages.length} сообщений)\n\n${summary}`,
-                { 
-                    reply_to_message_id: ctx.message.message_id
-                }
-            );
+            await ctx.reply(`📊 Саммаризация обсуждения:\n\n${summary}`, {
+                reply_to_message_id: ctx.message.message_id
+            });
         } else {
-            await ctx.reply('❌ Не удалось создать саммаризацию.');
+            await ctx.reply('❌ Не удалось создать саммаризацию.', {
+                reply_to_message_id: ctx.message.message_id
+            });
         }
         
     } catch (error) {
-        console.error('[SummaryHandler Error]', error);
+        logger.error('Summary error:', error);
         if (loadingMsg) {
-            await ctx.telegram.editMessageText(
-                ctx.chat.id,
-                loadingMsg.message_id,
-                null,
-                '❌ Ошибка при создании саммаризации.'
-            ).catch(() => {});
-        } else {
-            ctx.reply('❌ Ошибка при создании саммаризации.');
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
         }
+        await ctx.reply('❌ Ошибка при создании саммаризации.').catch(() => {});
     }
 }

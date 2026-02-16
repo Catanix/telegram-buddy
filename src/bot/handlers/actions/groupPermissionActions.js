@@ -1,13 +1,24 @@
-import { allowGroupAccess, denyGroupAccess } from '../../../models/GroupPermissionsModel.js';
-import { isAdmin, getAdminChatId } from '../../middleware/checkAccess.js';
+import { logger } from '../../../utils/logger.js';
+import { CONFIG } from '../../../config/index.js';
+import * as groupPermissions from '../../../services/groupPermissions.js';
 
 /**
- * Регистрация обработчиков для управления доступом к группам
+ * Check if user is admin
+ * @param {Context} ctx 
+ * @returns {boolean}
+ */
+function isAdmin(ctx) {
+    return ctx.from?.username === CONFIG.adminUsername || 
+           ctx.from?.id === CONFIG.adminChatId;
+}
+
+/**
+ * Register group permission action handlers
+ * @param {Telegraf} bot 
  */
 export function registerGroupPermissionActions(bot) {
-    // Обработка нажатия "Разрешить" группу
+    // Allow group action
     bot.action(/allow_group_(.+)/, async (ctx) => {
-        // Проверяем, что нажал админ
         if (!isAdmin(ctx)) {
             return ctx.answerCbQuery('❌ Только администратор может разрешать группы');
         }
@@ -15,22 +26,22 @@ export function registerGroupPermissionActions(bot) {
         const groupId = ctx.match[1];
         
         try {
-            await allowGroupAccess(groupId);
+            await groupPermissions.allowGroupAccess(groupId);
             
-            // Отправляем сообщение в группу о разрешении
+            // Notify group
             try {
                 await ctx.telegram.sendMessage(
                     groupId,
                     '✅ Администратор разрешил использование бота в этой группе!\n\n' +
                     '📋 Доступные команды:\n' +
-                    '/unzip - извлечь контент по ссылке (ответьте на сообщение или используйте после ссылки)\n' +
-                    '/summary - создать саммаризацию последних сообщений'
+                    '/unzip - извлечь контент по ссылке\n' +
+                    '/summary - саммаризация обсуждения'
                 );
-            } catch (e) {
-                console.error('[GroupPermission] Failed to notify group:', e);
+            } catch (error) {
+                logger.error('Failed to notify group about allowance:', error);
             }
             
-            // Обновляем сообщение админу и убираем кнопки
+            // Update admin message
             await ctx.editMessageText(
                 ctx.callbackQuery.message.text + '\n\n✅ ГРУППА РАЗРЕШЕНА',
                 { reply_markup: { inline_keyboard: [] } }
@@ -38,14 +49,13 @@ export function registerGroupPermissionActions(bot) {
             await ctx.answerCbQuery('Группа разрешена');
             
         } catch (error) {
-            console.error('[GroupPermission] Error allowing group:', error);
+            logger.error('Error allowing group:', error);
             await ctx.answerCbQuery('❌ Ошибка при разрешении группы');
         }
     });
     
-    // Обработка нажатия "Отклонить" группу
+    // Deny group action
     bot.action(/deny_group_(.+)/, async (ctx) => {
-        // Проверяем, что нажал админ
         if (!isAdmin(ctx)) {
             return ctx.answerCbQuery('❌ Только администратор может отклонять группы');
         }
@@ -53,19 +63,19 @@ export function registerGroupPermissionActions(bot) {
         const groupId = ctx.match[1];
         
         try {
-            await denyGroupAccess(groupId);
+            await groupPermissions.denyGroupAccess(groupId);
             
-            // Отправляем сообщение в группу об отказе
+            // Notify group
             try {
                 await ctx.telegram.sendMessage(
                     groupId,
                     '❌ Администратор отклонил запрос на использование бота в этой группе.'
                 );
-            } catch (e) {
-                console.error('[GroupPermission] Failed to notify group:', e);
+            } catch (error) {
+                logger.error('Failed to notify group about denial:', error);
             }
             
-            // Обновляем сообщение админу и убираем кнопки
+            // Update admin message
             await ctx.editMessageText(
                 ctx.callbackQuery.message.text + '\n\n❌ ГРУППА ОТКЛОНЕНА',
                 { reply_markup: { inline_keyboard: [] } }
@@ -73,7 +83,7 @@ export function registerGroupPermissionActions(bot) {
             await ctx.answerCbQuery('Группа отклонена');
             
         } catch (error) {
-            console.error('[GroupPermission] Error denying group:', error);
+            logger.error('Error denying group:', error);
             await ctx.answerCbQuery('❌ Ошибка при отклонении группы');
         }
     });
