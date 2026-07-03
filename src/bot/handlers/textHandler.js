@@ -1,11 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { Markup } from 'telegraf';
 import { downloadInstagramMedia } from '../../services/media/instagram.js';
 import { extractMediaUrls } from '../../utils/extractUrl.js';
 import { downloadTikTokMedia } from '../../services/media/tiktok.js';
 import { incrementStats } from '../../services/db.js';
-import { getVideoInfo } from "../../services/media/youtube.js";
+import { downloadYouTubeMedia } from '../../services/media/youtube.js';
 import { downloadXMedia, downloadXMediaFile, formatXMessage } from '../../services/media/x.js';
 
 export async function textHandler(ctx, next) {
@@ -59,36 +58,7 @@ const handleMedia = async (ctx, media) => {
         } else if (media.type === 'tiktok') {
             result = await downloadTikTokMedia(media.url);
         } else if (media.type === 'youtube') {
-            const videoInfo = await getVideoInfo(media.url);
-
-            if (videoInfo && videoInfo.formats.length > 0) {
-                const buttons = videoInfo.formats.map(format => {
-                    const audioItag = format.audioItag || '0';
-                    const videoItag = format.videoItag || format.itag;
-                    const audioTrackId = format.audioTrackId || '0';
-                    const callbackData = `yt_dl|${videoInfo.videoId}|${videoItag}|${audioItag}|${audioTrackId}`;
-                    return Markup.button.callback(
-                        `${format.quality} (${format.sizeMB}MB)`,
-                        callbackData
-                    );
-                });
-
-                const imagePath = path.resolve('src/assets/images/yukiTube.png');
-                await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
-                await ctx.replyWithPhoto(
-                    { source: imagePath },
-                    {
-                        caption: `🎬 *${videoInfo.title}*\n\nВыберите качество для скачивания:`,
-                        parse_mode: 'Markdown',
-                        reply_markup: {
-                            inline_keyboard: [buttons]
-                        }
-                    }
-                );
-                return;
-            } else {
-                throw new Error('No suitable YouTube formats found or video is too large.');
-            }
+            result = await downloadYouTubeMedia(media.url);
         } else if (media.type === 'x') {
             const tweetData = await downloadXMedia(media.url);
 
@@ -126,22 +96,46 @@ const handleMedia = async (ctx, media) => {
             }
         }
 
-        // Instagram and TikTok
+        // Instagram returns { files: [...] }
+        if (media.type === 'instagram' && result && result.files && result.files.length > 0) {
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
+            
+            if (result.files.length === 1) {
+                await sendMedia(ctx, result.files[0]);
+            } else {
+                // Send as media group (carousel)
+                await sendMediaGroup(ctx, result.files);
+            }
+            
+            // Cleanup all files
+            for (const file of result.files) {
+                if (fs.existsSync(file.filePath)) {
+                    fs.unlinkSync(file.filePath);
+                }
+            }
+            await incrementStats(ctx.from.id, media.type);
+            console.log(`[DOWNLOAD SUCCESS] ${media.type}: ${result.files.length} files`);
+            return;
+        }
+
+        // TikTok and YouTube return { filePath, mediaType }
         if (result && result.filePath) {
             await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             await sendMedia(ctx, result);
             fs.unlinkSync(result.filePath);
             await incrementStats(ctx.from.id, media.type);
             console.log(`[DOWNLOAD SUCCESS] ${media.type}`);
-        } else {
-            await ctx.telegram.editMessageText(
-                ctx.chat.id,
-                loadingMsg.message_id,
-                null,
-                '❌ Не удалось загрузить медиа. Возможно, аккаунт приватный или контент недоступен.'
-            ).catch(() => {});
-            console.error(`[DOWNLOAD FAILED] ${media.type}: ${media.url}`);
+            return;
         }
+
+        await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            null,
+            '❌ Не удалось загрузить медиа. Возможно, аккаунт приватный или контент недоступен.'
+        ).catch(() => {});
+        console.error(`[DOWNLOAD FAILED] ${media.type}: ${media.url}`);
+
     } catch (error) {
         console.error('[DOWNLOAD ERROR]', error);
         if (loadingMsg) {
@@ -171,5 +165,22 @@ async function sendMedia(ctx, media) {
     } catch (error) {
         console.error('SendMedia Error:', error);
         await ctx.reply('❌ Не удалось отправить медиа.');
+    }
+}
+
+async function sendMediaGroup(ctx, files) {
+    try {
+        const mediaGroup = files.map(file => {
+            const type = file.mediaType === 'video' ? 'video' : 'photo';
+            return { type, media: { source: file.filePath } };
+        });
+
+        await ctx.replyWithMediaGroup(mediaGroup);
+    } catch (error) {
+        console.error('SendMediaGroup Error:', error);
+        // Fallback: send one by one
+        for (const file of files) {
+            await sendMedia(ctx, file);
+        }
     }
 }

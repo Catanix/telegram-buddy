@@ -2,7 +2,7 @@ import fs from 'fs';
 import { extractMediaUrls } from '../../../utils/extractUrl.js';
 import { downloadTikTokMedia } from '../../../services/media/tiktok.js';
 import { downloadInstagramMedia } from '../../../services/media/instagram.js';
-import { getVideoInfo } from '../../../services/media/youtube.js';
+import { downloadYouTubeMedia } from '../../../services/media/youtube.js';
 import { downloadXMedia, downloadXMediaFile, formatXMessage } from '../../../services/media/x.js';
 import { getRecentMessages } from '../../../services/database/index.js';
 import { summarizeMessages } from '../../../services/api/summarize.js';
@@ -38,8 +38,8 @@ export async function unzipHandler(ctx) {
         if (!media || !media.url) {
             return ctx.reply(
                 '❌ Не нашёл ссылку на поддерживаемый контент.\n\n' +
-                'Использование:\n' +
-                '• Ответьте /unzip на сообщение со ссылкой\n' +
+                '📝 Как использовать /unzip:\n' +
+                '• Ответьте /unzip на сообщение со ссылкой (Instagram, TikTok, YouTube или X)\n' +
                 '• Или отправьте /unzip <ссылка>',
                 { reply_to_message_id: ctx.message.message_id }
             );
@@ -60,10 +60,7 @@ export async function unzipHandler(ctx) {
                 result = await downloadInstagramMedia(media.url);
                 break;
             case 'youtube':
-                const videoInfo = await getVideoInfo(media.url);
-                if (videoInfo) {
-                    responseText = `🎬 ${videoInfo.title}\n\n🔗 ${media.url}`;
-                }
+                result = await downloadYouTubeMedia(media.url);
                 break;
             case 'x':
                 const tweetData = await downloadXMedia(media.url);
@@ -93,8 +90,43 @@ export async function unzipHandler(ctx) {
                 return ctx.reply('❌ Неподдерживаемый тип ссылки.');
         }
         
-        // Handle TikTok and Instagram
-        if (result?.filePath) {
+        // Handle Instagram (returns { files: [...] })
+        if (media.type === 'instagram' && result?.files?.length > 0) {
+            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
+            
+            if (result.files.length === 1) {
+                const file = result.files[0];
+                if (file.mediaType === 'video') {
+                    await ctx.replyWithVideo(
+                        { source: file.filePath },
+                        { reply_to_message_id: ctx.message.message_id }
+                    );
+                } else {
+                    await ctx.replyWithPhoto(
+                        { source: file.filePath },
+                        { reply_to_message_id: ctx.message.message_id }
+                    );
+                }
+            } else {
+                // Carousel: send as media group
+                const mediaGroup = result.files.map(file => ({
+                    type: file.mediaType === 'video' ? 'video' : 'photo',
+                    media: { source: file.filePath }
+                }));
+                await ctx.replyWithMediaGroup(mediaGroup, {
+                    reply_to_message_id: ctx.message.message_id
+                });
+            }
+            
+            // Cleanup
+            for (const file of result.files) {
+                if (fs.existsSync(file.filePath)) {
+                    fs.unlinkSync(file.filePath);
+                }
+            }
+        } 
+        // Handle TikTok and YouTube (returns { filePath, mediaType })
+        else if (result?.filePath) {
             await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             
             if (result.mediaType === 'video') {
@@ -110,9 +142,6 @@ export async function unzipHandler(ctx) {
             }
             
             fs.unlinkSync(result.filePath);
-        } else if (media.type === 'youtube' && responseText) {
-            await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
-            await ctx.reply(responseText, { reply_to_message_id: ctx.message.message_id });
         } else {
             await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
             await ctx.reply('❌ Не удалось извлечь контент.').catch(() => {});
@@ -157,7 +186,9 @@ export async function summaryHandler(ctx) {
         await ctx.deleteMessage(loadingMsg.message_id).catch(() => {});
         
         if (summary) {
-            await ctx.reply(`📊 Саммаризация обсуждения:\n\n${summary}`, {
+            // Убираем @ из ответа на всякий случай
+            const cleanSummary = summary.replace(/@(\w+)/g, '$1');
+            await ctx.reply(`📋 Короче, в чате творилось:\n\n${cleanSummary}`, {
                 reply_to_message_id: ctx.message.message_id
             });
         } else {

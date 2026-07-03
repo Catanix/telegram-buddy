@@ -2,7 +2,6 @@ import { logger } from '../../../utils/logger.js';
 import { CONFIG } from '../../../config/index.js';
 import * as groupPermissions from '../../../services/groupPermissions.js';
 import { registerMusicActions } from '../commands/musicSearchHandler.js';
-import { registerYoutubeDownloadAction } from './youtubeDownloadAction.js';
 import { registerGroupPermissionActions } from './groupPermissionActions.js';
 
 /**
@@ -47,7 +46,6 @@ export function initGroupHandlers(bot) {
     
     // Register other actions
     registerMusicActions(bot);
-    registerYoutubeDownloadAction(bot);
     registerGroupPermissionActions(bot);
 }
 

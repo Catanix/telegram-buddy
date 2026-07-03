@@ -55,6 +55,12 @@ Thumbs.db
 *.swo
 *~
 
+# yt-dlp binary
+yt-dlp
+
+# Cookies file (private)
+cookies.txt
+
 # Large binary files
 *.mp4
 *.mp3
