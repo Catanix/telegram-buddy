@@ -75,3 +75,20 @@ LM_API_KEY=your_deepseek_key
 - Each group has isolated message history (max 100 messages)
 - Messages auto-cleanup after 7 days
 - Bot requires admin rights in groups for proper functionality
+
+---
+
+## RAILGUN Methodology
+
+This project follows the **RAILGUN** methodology for structured development.
+
+- **Command Center:** `.railgun/AGENTS.md`
+- **Rail Protocol:** `.railgun/rail-protocol.md`
+- **Layers:**
+  - `00-runtime` — Sprint status, active tasks, temporary workarounds
+  - `01-domain` — Business entities, naming, data models, flows
+  - `02-blueprint` — Architecture, patterns, libraries, file structure
+  - `03-validation` — Testing, quality, coverage
+  - `04-guardrails` — Security, checklists, delivery gates
+
+**Execution Loop:** For every task, follow RAILGUN's three-phase lifecycle (Discovery → Execution → Final Gate).
