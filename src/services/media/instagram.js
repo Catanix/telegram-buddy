@@ -1,18 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
-import { execFileSync } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
-import { instagramGetUrl } from "instagram-url-direct"
+import { chromium } from 'playwright';
 
 const TMP_DIR = 'tmp';
-const YT_DLP_PATH = path.resolve('yt-dlp');
-const COOKIES_PATH = path.resolve('cookies.txt');
 
 /**
- * Download media from an Instagram URL
- * Supports carousels (multiple photos/videos) — returns array of files
- * Falls back to yt-dlp with cookies if instagram-url-direct fails
+ * Download media from an Instagram URL using Playwright + embed page
+ * No cookies required — works for all public posts, carousels, reels, photos
+ * Returns array of {filePath, mediaType} for all media items
  * @param {string} url - Instagram URL
  * @returns {Promise<{files: Array<{filePath: string, mediaType: string}>}|null>}
  */
@@ -20,120 +17,179 @@ export async function downloadInstagramMedia(url) {
     try {
         console.log(`[Instagram Downloader] Starting: ${url}`);
 
-        // 1. Try instagram-url-direct (fast, no cookies needed when it works)
-        const igResult = await tryInstagramUrlDirect(url);
-        if (igResult && igResult.files.length > 0) {
-            return igResult;
+        const shortcode = extractShortcode(url);
+        if (!shortcode) {
+            console.error('[Instagram Downloader] Invalid URL');
+            return null;
         }
 
-        // 2. Fallback to yt-dlp with cookies if available
-        if (fs.existsSync(COOKIES_PATH)) {
-            console.log('[Instagram Downloader] Falling back to yt-dlp with cookies...');
-            return await tryYtDlp(url);
+        if (!fs.existsSync(TMP_DIR)) {
+            fs.mkdirSync(TMP_DIR, { recursive: true });
         }
 
-        console.error('[Instagram Downloader] No cookies available and instagram-url-direct failed.');
-        return null;
+        const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/`;
+        const mediaUrls = await scrapeEmbedPage(embedUrl);
 
+        if (mediaUrls.length === 0) {
+            console.error('[Instagram Downloader] No media found on embed page');
+            return null;
+        }
+
+        console.log(`[Instagram Downloader] Found ${mediaUrls.length} media items`);
+
+        const files = [];
+        for (let i = 0; i < mediaUrls.length; i++) {
+            const media = mediaUrls[i];
+            const ext = media.type === 'video' ? 'mp4' : 'jpg';
+            const filename = `instagram_${uuidv4()}.${ext}`;
+            const filePath = path.join(TMP_DIR, filename);
+
+            console.log(`[Instagram Downloader] Downloading ${i + 1}/${mediaUrls.length}: ${media.type}`);
+
+            try {
+                const response = await fetch(media.url, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Accept': '*/*'
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error(`[Instagram Downloader] Failed to fetch: ${response.status}`);
+                    continue;
+                }
+
+                const buffer = Buffer.from(await response.arrayBuffer());
+                fs.writeFileSync(filePath, buffer);
+                console.log(`[Instagram Downloader] Saved: ${filePath} (${buffer.length} bytes)`);
+
+                files.push({ filePath, mediaType: media.type });
+            } catch (err) {
+                console.error(`[Instagram Downloader] Download error: ${err.message}`);
+            }
+        }
+
+        if (files.length === 0) {
+            return null;
+        }
+
+        return { files };
     } catch (error) {
         console.error('[Instagram Downloader Error]', error.message);
         return null;
     }
 }
 
-async function tryInstagramUrlDirect(url) {
+/**
+ * Scrape media URLs from Instagram embed page using Playwright
+ * Clicks through carousel to collect all slides
+ * @param {string} embedUrl - Instagram embed URL
+ * @returns {Promise<Array<{type: string, url: string}>>}
+ */
+async function scrapeEmbedPage(embedUrl) {
+    const browser = await chromium.launch({ headless: true });
+    const allMedia = new Map(); // dedup by URL
+
     try {
-        console.log(`[Instagram Downloader] Trying instagram-url-direct...`);
-
-        const result = await instagramGetUrl(url);
-        console.log('[instagram-url-direct result]', JSON.stringify(result, null, 2).substring(0, 1000));
-
-        if (!result || !Array.isArray(result.url_list) || result.url_list.length === 0) {
-            console.log('[Instagram Downloader] instagram-url-direct returned no URLs');
-            return { files: [] };
-        }
-
-        if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
-
-        const files = [];
-        for (let i = 0; i < result.url_list.length; i++) {
-            const mediaUrl = result.url_list[i];
-            if (!mediaUrl) continue;
-
-            const isVideo = mediaUrl.includes('.mp4') || result.media_details?.[i]?.type === 'video';
-            const mediaType = isVideo ? 'video' : 'photo';
-            const ext = isVideo ? 'mp4' : 'jpg';
-            const filename = `instagram_${uuidv4()}.${ext}`;
-            const filePath = path.join(TMP_DIR, filename);
-
-            console.log(`[Instagram Downloader] Downloading item ${i + 1}/${result.url_list.length}: ${mediaType}`);
-
-            const response = await fetch(mediaUrl);
-            if (!response.ok) {
-                console.error(`[Instagram Downloader] Failed to fetch item ${i + 1}: ${response.status}`);
-                continue;
-            }
-
-            const buffer = Buffer.from(await response.arrayBuffer());
-            fs.writeFileSync(filePath, buffer);
-            console.log(`[Instagram Downloader] Saved: ${filePath} (${buffer.length} bytes)`);
-
-            files.push({ filePath, mediaType });
-        }
-
-        return { files };
-    } catch (err) {
-        console.error('[Instagram Downloader] instagram-url-direct error:', err.message);
-        return { files: [] };
-    }
-}
-
-async function tryYtDlp(url) {
-    try {
-        if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
-
-        const uniqueId = uuidv4();
-        const outDir = path.join(TMP_DIR, `instagram_${uniqueId}`);
-        fs.mkdirSync(outDir, { recursive: true });
-
-        const outTemplate = path.join(outDir, '%(media_number)s_%(title).50s.%(ext)s');
-
-        const args = [
-            '--cookies', COOKIES_PATH,
-            '--no-playlist',
-            '-f', 'best',
-            '--merge-output-format', 'mp4',
-            '-o', outTemplate,
-            '--no-warnings',
-            url
-        ];
-
-        console.log(`[Instagram Downloader] yt-dlp args: ${args.join(' ')}`);
-
-        const output = execFileSync(YT_DLP_PATH, args, {
-            encoding: 'utf-8',
-            timeout: 120000,
-            maxBuffer: 1024 * 1024
+        const context = await browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport: { width: 1280, height: 720 }
         });
 
-        console.log(`[Instagram Downloader] yt-dlp output: ${output.substring(0, 500)}`);
+        const page = await context.newPage();
+        await page.goto(embedUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
-        const files = fs.readdirSync(outDir).map(f => {
-            const filePath = path.join(outDir, f);
-            const mediaType = f.endsWith('.mp4') ? 'video' : 'photo';
-            return { filePath, mediaType };
-        }).filter(f => f.filePath);
+        let hasNext = true;
+        let clicks = 0;
+        const maxClicks = 20; // Safety limit for carousel
 
-        if (files.length === 0) {
-            console.error('[Instagram Downloader] yt-dlp returned no files');
-            return null;
+        while (hasNext && clicks < maxClicks) {
+            // Extract current slide media
+            const currentMedia = await page.evaluate(() => {
+                const result = [];
+
+                // Images — get the largest version from srcset if available
+                const images = document.querySelectorAll('img');
+                images.forEach(img => {
+                    if (img.src && img.src.includes('instagram') && img.src.includes('.jpg')) {
+                        // Skip avatar/profile pics (small size indicators)
+                        if (!img.src.includes('s100x100') && !img.src.includes('p240x240')) {
+                            let bestUrl = img.src;
+                            if (img.srcset) {
+                                const candidates = img.srcset.split(',').map(s => {
+                                    const [url, width] = s.trim().split(' ');
+                                    return { url: url.trim(), width: parseInt(width) || 0 };
+                                }).filter(c => c.url.includes('instagram'));
+                                if (candidates.length > 0) {
+                                    candidates.sort((a, b) => b.width - a.width);
+                                    bestUrl = candidates[0].url;
+                                }
+                            }
+                            result.push({ type: 'photo', url: bestUrl });
+                        }
+                    }
+                });
+
+                // Videos
+                const videos = document.querySelectorAll('video');
+                videos.forEach(v => {
+                    if (v.src && v.src.includes('instagram')) {
+                        result.push({ type: 'video', url: v.src });
+                    }
+                });
+
+                // Video sources
+                const sources = document.querySelectorAll('source');
+                sources.forEach(s => {
+                    if (s.src && s.src.includes('instagram')) {
+                        result.push({ type: 'video', url: s.src });
+                    }
+                });
+
+                return result;
+            });
+
+            currentMedia.forEach(m => {
+                if (!allMedia.has(m.url)) {
+                    allMedia.set(m.url, m);
+                }
+            });
+
+            // Try to click next carousel button
+            hasNext = await page.evaluate(() => {
+                const buttons = document.querySelectorAll('button');
+                for (const btn of buttons) {
+                    const ariaLabel = btn.getAttribute('aria-label') || '';
+                    if (ariaLabel.toLowerCase().includes('next')) {
+                        btn.click();
+                        return true;
+                    }
+                }
+                return false;
+            });
+
+            if (hasNext) {
+                clicks++;
+                await page.waitForTimeout(1000); // Wait for slide transition
+            }
         }
 
-        return { files };
-    } catch (error) {
-        console.error('[Instagram Downloader] yt-dlp error:', error.message);
-        if (error.stdout) console.log('[yt-dlp stdout]', error.stdout.substring(0, 500));
-        if (error.stderr) console.error('[yt-dlp stderr]', error.stderr.substring(0, 500));
-        return null;
+    } catch (err) {
+        console.error('[Instagram Playwright Error]', err.message);
+    } finally {
+        await browser.close();
     }
+
+    return Array.from(allMedia.values());
+}
+
+/**
+ * Extract shortcode from Instagram URL
+ * @param {string} url
+ * @returns {string|null}
+ */
+function extractShortcode(url) {
+    const regex = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(p|reels|reel|tv|stories)\/([A-Za-z0-9-_]+)/;
+    const match = url.match(regex);
+    return match && match[2] ? match[2] : null;
 }
