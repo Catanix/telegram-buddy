@@ -1,4 +1,4 @@
-# Bot Routing & Navigation Rail
+# Handler Chain Rail
 
 ## Core Principles
 - Handlers are registered in strict order: middleware first, specific commands next, catch-all text last
@@ -6,7 +6,7 @@
 - Access control happens before any business logic, never after
 - Commands are declarative and centralized in `bot.js`
 
-## Handler Chain Structure
+## Handler Registration Order
 
 ```
 Message Logger (always first)

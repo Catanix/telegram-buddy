@@ -32,4 +32,4 @@ Pick the rail that matches your task:
 - Security rules take precedence over convenience and speed
 - Bot development has additional checks: handler order, pure services, temp cleanup, DB connection
 - After completing the checklist, the agent MUST follow the **Agent Hygiene Rule** in `checklist.md` and reset all checkboxes back to `[ ]`
-- For bot tasks, verify `docker compose build` succeeds before declaring complete
+- For bot tasks, verify `docker compose build` succeeds and bot starts before declaring complete

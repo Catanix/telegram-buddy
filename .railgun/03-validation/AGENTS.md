@@ -8,19 +8,14 @@ This layer defines how we prove code works. Read-Only for AI during normal devel
 
 Pick the rail that matches your task:
 
-- **Unit Tests** → Read `unit-tests.md`
-  - Mandatory when: writing or modifying unit tests, mocks, or test utilities
-  - Covers: AAA pattern, mocking rules, assertion style, coverage expectations
-  - Bot-specific: mocking Telegraf ctx, Playwright, yt-dlp, database
-
-- **E2E Tests** → Read `e2e-tests.md`
-  - Mandatory when: writing or modifying end-to-end or integration tests
-  - Covers: Telegram Bot API testing, Docker test environment, message polling
+- **Testing Plan** → Read `testing-plan.md`
+  - Mandatory when: releasing or verifying functionality
+  - Covers: manual test checklist, regression tests, platform verification
+  - Notes: Project has no automated test suite — testing is manual via bot interaction
 
 ## Layer Rules
 
-- Every production code change MUST have corresponding test coverage
-- Tests MUST be deterministic: same input always produces same result
-- Never use live network, real databases, or external services in unit tests
-- Bot tests require mocking Telegraf context, Playwright, and yt-dlp
-- All download services must have test coverage for: happy path, invalid URL, network failure, file cleanup
+- All code changes MUST be manually tested before release
+- Manual testing follows the checklist in `testing-plan.md`
+- Never release without verifying all platforms (TikTok, Instagram, YouTube, X)
+- After Docker changes, verify `docker compose build` and `docker compose up`

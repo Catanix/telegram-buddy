@@ -5,8 +5,7 @@
 - [ ] I have read the relevant rails for this task and followed them
 - [ ] No `console.log`, `debugger`, or temporary comments remain in the code
 - [ ] No dead code, unused imports, or commented-out blocks
-- [ ] All new code has corresponding tests (unit or integration as appropriate)
-- [ ] All tests pass locally
+- [ ] All new code has been manually tested (see `03-validation/testing-plan.md`)
 - [ ] No secrets, passwords, API keys, or tokens are hardcoded
 - [ ] No PII (personally identifiable information) is exposed in logs or errors
 - [ ] Error handling covers edge cases, not just the happy path
@@ -80,7 +79,7 @@ Before declaring this task complete, I confirm that:
 - [ ] I have completed the Mandatory Self-Review checklist above
 - [ ] I have completed the Bot-Specific Checks
 - [ ] I have verified the commit message format (if committing)
-- [ ] I have run all applicable tests and they pass
+- [ ] I have manually tested the changes (see `03-validation/testing-plan.md`)
 - [ ] I have explicitly stated which rails were used in this task
 
 ## Agent Hygiene Rule

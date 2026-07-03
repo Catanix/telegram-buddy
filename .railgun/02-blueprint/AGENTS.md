@@ -8,17 +8,13 @@ This layer defines HOW code must be written. Read-Only for AI during normal deve
 
 Pick the rail that matches your task:
 
-- **State Management** → Read `state-management.md`
-  - Mandatory when: reading/writing global or local state, stores, or data flow
-  - Covers: mutation rules, store patterns, caching strategies
-
-- **Routing & Navigation** → Read `routing.md`
-  - Mandatory when: adding/modifying routes, navigation flows, or entry points
-  - Covers: lazy-loading, guards, access control, deep-linking
-
-- **Bot Architecture** → Read `cli-architecture.md` (renamed from cli-architecture, content is bot architecture)
+- **Bot Architecture** → Read `bot-architecture.md`
   - Mandatory when: modifying handlers, services, middleware, or bot structure
   - Covers: handler order, service isolation, error handling, project structure
+
+- **Handler Chain** → Read `handler-chain.md`
+  - Mandatory when: adding/modifying handlers or command routing
+  - Covers: registration order, guards, access control, callback actions
 
 ## Layer Rules
 
