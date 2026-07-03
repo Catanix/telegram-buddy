@@ -20,16 +20,16 @@ Pick the rail that matches your task:
 - **Pre-Commit Checklist** → Read `checklist.md`
   - Mandatory when: BEFORE declaring any task complete or committing code
   - Covers: self-review steps, commit format, console.log removal, test execution
-  - CLI-specific: command registration, path handling, config detection, graceful exits, ASCII rendering, color consistency, TypeScript compilation, test pass rate
+  - Bot-specific: handler order, service purity, temp file cleanup, DB connection, Docker build
 
 - **Security Rules** → Read `security.md`
-  - Mandatory when: handling user input, secrets, authentication, or environment configuration
+  - Mandatory when: handling user input, secrets, Telegram tokens, AI API keys, or group permissions
 
 ## Layer Rules
 
 - Guardrails are the FINAL checkpoint, not the starting point
 - If checklist.md says something is forbidden, it is forbidden — no exceptions
 - Security rules take precedence over convenience and speed
-- CLI development has additional checks: never overwrite configs without consent, always test in temp directories
+- Bot development has additional checks: handler order, pure services, temp cleanup, DB connection
 - After completing the checklist, the agent MUST follow the **Agent Hygiene Rule** in `checklist.md` and reset all checkboxes back to `[ ]`
-- For CLI tasks, verify `npm run build` and `npm test` pass before declaring complete
+- For bot tasks, verify `docker compose build` succeeds before declaring complete

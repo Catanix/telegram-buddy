@@ -16,9 +16,9 @@ Pick the rail that matches your task:
   - Mandatory when: adding/modifying routes, navigation flows, or entry points
   - Covers: lazy-loading, guards, access control, deep-linking
 
-- **CLI Architecture** → Read `cli-architecture.md`
-  - Mandatory when: modifying RAILGUN CLI commands, presets, or interactive flows
-  - Covers: command structure, dependencies, color scheme, testing patterns
+- **Bot Architecture** → Read `cli-architecture.md` (renamed from cli-architecture, content is bot architecture)
+  - Mandatory when: modifying handlers, services, middleware, or bot structure
+  - Covers: handler order, service isolation, error handling, project structure
 
 ## Layer Rules
 

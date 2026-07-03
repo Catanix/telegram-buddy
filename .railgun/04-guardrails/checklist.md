@@ -12,19 +12,22 @@
 - [ ] Error handling covers edge cases, not just the happy path
 - [ ] Variable and function names follow the project glossary and conventions
 
-## CLI-Specific Checks (for RAILGUN CLI development)
+## Bot-Specific Checks
 
-- [ ] Commands registered in `src/index.ts` with proper descriptions
-- [ ] No hardcoded paths (always use `process.cwd()` or `path.join()`)
-- [ ] Existing AI configs detected before modification (CLAUDE.md, .cursorrules, AGENTS.md)
-- [ ] User confirmation obtained before modifying any project files
-- [ ] Graceful exit when user declines (exit code 0, no error message)
-- [ ] ASCII art renders correctly in terminal (test with `node dist/index.js`)
-- [ ] Pink color scheme consistent (`#FF69B4` primary, green success, yellow warning)
-- [ ] All preset files are valid markdown (React, Vue, Python, Go)
-- [ ] `npm run build` succeeds with zero TypeScript errors
-- [ ] `npm test` passes with 100% of tests green
-- [ ] No `node_modules/` or `dist/` committed (check `.gitignore`)
+- [ ] Handlers registered in correct order (middleware → commands → actions → text)
+- [ ] All handlers call `next()` when they don't match the current update
+- [ ] Download functions are pure — no Telegram `ctx` passed into services
+- [ ] Temp files in `tmp/` are cleaned up after success AND failure
+- [ ] Database operations use `database/index.js` (not standalone `db.js` connection)
+- [ ] Group ID cast to STRING before DB operations (`String(groupId)`)
+- [ ] Environment variables checked at startup (`process.env.TELEGRAM_TOKEN` exists)
+- [ ] Error messages shown to users are in Russian ("❌ Не удалось...")
+- [ ] Logs to console use English with `[ModuleName]` prefix for grepability
+- [ ] No blocking operations in handlers (all async with await)
+- [ ] Playwright browser instances are closed in `finally` blocks
+- [ ] yt-dlp binary exists in container (`yt-dlp` in Dockerfile, not just host)
+- [ ] Docker image builds successfully (`docker compose build`)
+- [ ] Bot starts without errors in Docker (`docker compose up` logs)
 
 ## Commit Message Format (Conventional Commits)
 
@@ -47,20 +50,22 @@ Every commit message MUST follow this structure:
 
 ### Examples
 ```
-feat(auth): add password reset flow
+feat(youtube): add yt-dlp downloader for shorts and videos
 
-Implement token-based password reset with 24h expiration.
-Emails are sent via the notification service.
+Replace ytdl-core with yt-dlp binary. Downloads best combined
+format without quality selection. Supports shorts via /shorts/ URLs.
 
-Closes #142
+Closes #42
 ```
 
 ```
-fix(api): handle null response in user endpoint
+fix(instagram): handle carousel posts via playwright embed
 
-Prevent 500 error when downstream service returns empty payload.
+Playwright opens embed page, clicks through slides, collects all
+media URLs. No cookies required. Falls back to error message if
+embed fails.
 
-Fixes #289
+Fixes #55
 ```
 
 ### Forbidden
@@ -73,7 +78,7 @@ Fixes #289
 Before declaring this task complete, I confirm that:
 - [ ] I have read all relevant rails for this task
 - [ ] I have completed the Mandatory Self-Review checklist above
-- [ ] I have completed the CLI-Specific Checks (if applicable)
+- [ ] I have completed the Bot-Specific Checks
 - [ ] I have verified the commit message format (if committing)
 - [ ] I have run all applicable tests and they pass
 - [ ] I have explicitly stated which rails were used in this task

@@ -17,11 +17,11 @@ Pick the rail that matches your task:
   - Covers: field constraints, numeric limits, string lengths, relationship rules
 
 - **Business Flows** → Read `core-flows.md`
-  - Mandatory when: implementing multi-step processes, state machines, or transactional logic
-  - Covers: sequence of operations, side effects, rollback rules
+  - Mandatory when: implementing auto-download, /unzip, /summary, or group access flows
+  - Covers: sequence of operations, side effects, rollback rules for bot flows
 
 ## Layer Rules
 
 - Use ONLY terms from `glossary.md`. Never invent synonyms.
-- Respect mathematical boundaries in `data-models.md` (max lengths, ranges, precision)
+- Respect boundaries in `data-models.md` (max lengths, Telegram API limits, file sizes)
 - Business flows MUST match the sequences defined in `core-flows.md`

@@ -1,32 +1,34 @@
 # Current Sprint / Active Context
 
 ## Active Tasks
-- CLI Tool Development (v0.1.0)
-  - Commands: `add`, `init`, `remove`
-  - Stack: Node.js + TypeScript + Commander + Inquirer
-  - Presets: React, Vue, Python, Go
-  - Interactive wizard with project analysis
-- Documentation Rewrite
-  - README with Reality Check about LLM limitations
-  - Docs: getting-started, layers, adding-rules, best-practices
+- Bot Maintenance & Feature Fixes
+  - YouTube Shorts download (via yt-dlp, no quality selection)
+  - Instagram carousel/reels (via Playwright embed scraping, no cookies)
+  - Clean isolated download functions for testability
+- Docker deployment optimization (Playwright + Chromium deps)
 
 ## Modules in Refactoring
-- CLI tool structure in `cli/` directory
-- Preset templates in `cli/src/templates/`
+- `src/services/media/instagram.js` — Playwright-based embed scraper
+- `src/services/media/youtube.js` — yt-dlp-based downloader
+- `src/services/db.js` — Fixed to use `database/index.js` connection
+- `src/bot/handlers/textHandler.js` — Unified media handling for all platforms
+- `src/bot/handlers/commands/groupCommands.js` — Carousel support in groups
+- `Dockerfile` — Added Playwright system deps + Chromium install
 
 ## Code Freezes / Moratoriums
-- No new major CLI commands until v0.2.0 planning
+- No new social platforms until current 4 are stable
+- No quality selection UI for YouTube (download original only)
 
 ## Known Blockers
 - (none)
 
 ## Temporary Workarounds
-- Using `npx` for local testing before npm publish
+- None currently
 
 ## Completed This Sprint
-- ✅ Interactive CLI with project analysis
-- ✅ Auto-detection of existing AI configs (.cursorrules, CLAUDE.md, etc.)
-- ✅ Three integration modes: Auto, Manual, Skip
-- ✅ Pink ASCII art and emoji-rich output
-- ✅ Jest tests (3/3 passing)
-- ✅ GitHub push with all commits
+- ✅ YouTube Shorts fixed (yt-dlp replaces ytdl-core)
+- ✅ Instagram carousel fixed (Playwright embed scraping, no cookies needed)
+- ✅ Clean download functions (no Telegram context, testable in isolation)
+- ✅ Database stats fixed (`db.js` uses `database/index.js` connection)
+- ✅ Docker image rebuilt with Playwright deps
+- ✅ RAILGUN methodology integrated
