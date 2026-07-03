@@ -1,115 +1,75 @@
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
-import fs from 'fs';
+import { getDatabase } from './database/index.js';
 
-export let db;
-
-export async function initDB() {
-    const dbPath = path.resolve('./data/db/tasks.sqlite');
-    const dbDir = path.dirname(dbPath);
-
-    try {
-        // ✅ Создаём директорию для базы данных, если не существует
-        if (!fs.existsSync(dbDir)) {
-            fs.mkdirSync(dbDir, { recursive: true });
-            console.log(`📁 Created DB directory: ${dbDir}`);
-        }
-
-        // ✅ Открываем базу данных
-        db = await open({
-            filename: dbPath,
-            driver: sqlite3.Database,
-        });
-
-        // ✅ Создаём таблицу user_stats для статистики
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS user_stats (
-                user_id INTEGER NOT NULL,
-                service TEXT NOT NULL,
-                usage_count INTEGER DEFAULT 1,
-                PRIMARY KEY (user_id, service)
-            );
-        `);
-
-        // ✅ Создаём таблицу group_permissions для управления доступом к группам
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS group_permissions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                group_id TEXT UNIQUE NOT NULL,
-                group_name TEXT,
-                allowed BOOLEAN DEFAULT 0,
-                requested_by TEXT,
-                requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                allowed_at DATETIME
-            );
-        `);
-
-        // ✅ Создаём таблицу для истории сообщений групп
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS group_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                group_id TEXT NOT NULL,
-                message_id INTEGER NOT NULL,
-                user_id INTEGER,
-                username TEXT,
-                first_name TEXT,
-                text TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        console.log('✅ Database initialized successfully');
-    } catch (error) {
-        console.error('❌ Failed to initialize database:', error);
-        process.exit(1);
+function getDb() {
+    const db = getDatabase();
+    if (!db) {
+        console.error('[DB] Database not initialized');
+        return null;
     }
+    return db;
 }
 
 // 📊 Увеличение счётчика статистики
 export async function incrementStats(userId, service) {
+    const db = getDb();
+    if (!db) return;
+
+    const columnMap = {
+        'tiktok': 'downloads_tiktok',
+        'instagram': 'downloads_instagram',
+        'youtube': 'downloads_youtube',
+        'x': 'downloads_x'
+    };
+    
+    const column = columnMap[service] || 'downloads';
+
     try {
         await db.run(`
-            INSERT INTO user_stats (user_id, service, usage_count)
-            VALUES (?, ?, 1)
-            ON CONFLICT(user_id, service) DO UPDATE SET
-            usage_count = usage_count + 1;
-        `, [userId, service]);
+            INSERT INTO user_stats (user_id, ${column}, last_active)
+            VALUES (?, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+            ${column} = ${column} + 1,
+            last_active = CURRENT_TIMESTAMP
+        `, [userId]);
     } catch (error) {
-        console.error(`❌ Failed to increment stats for service ${service}:`, error);
+        console.error(`[DB] Failed to increment stats for service ${service}:`, error);
     }
 }
 
 // 📈 Получение статистики пользователя
 export async function getStats(userId) {
+    const db = getDb();
+    if (!db) return [];
+
     try {
-        return await db.all('SELECT service, usage_count FROM user_stats WHERE user_id = ?', [userId]);
+        const row = await db.get('SELECT * FROM user_stats WHERE user_id = ?', [userId]);
+        if (!row) return [];
+
+        const result = [];
+        if (row.downloads_tiktok > 0) result.push({ service: 'tiktok', usage_count: row.downloads_tiktok });
+        if (row.downloads_instagram > 0) result.push({ service: 'instagram', usage_count: row.downloads_instagram });
+        if (row.downloads_youtube > 0) result.push({ service: 'youtube', usage_count: row.downloads_youtube });
+        if (row.downloads_x > 0) result.push({ service: 'x', usage_count: row.downloads_x });
+        if (row.downloads > 0) result.push({ service: 'music', usage_count: row.downloads });
+
+        return result;
     } catch (error) {
-        console.error(`❌ Failed to get stats for user ${userId}:`, error);
+        console.error(`[DB] Failed to get stats for user ${userId}:`, error);
         return [];
     }
 }
 
-// 💬 Сохранение сообщения группы (храним только последние 100)
+// 💬 Сохранение сообщения группы (backward compat)
 export async function saveGroupMessage(groupId, messageId, userId, username, firstName, text) {
+    const db = getDb();
+    if (!db) return;
+    
     try {
         await db.run(
             `INSERT INTO group_messages (group_id, message_id, user_id, username, first_name, text)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [String(groupId), messageId, userId, username, firstName, text]
-        );
-        
-        // Удаляем старые сообщения, оставляем только последние 100 для этой группы
-        await db.run(
-            `DELETE FROM group_messages 
-             WHERE group_id = ? 
-             AND id NOT IN (
-                 SELECT id FROM group_messages 
-                 WHERE group_id = ? 
-                 ORDER BY created_at DESC 
-                 LIMIT 100
-             )`,
-            [String(groupId), String(groupId)]
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(group_id, message_id) DO NOTHING`,
+            [String(groupId), messageId, userId, username || null, firstName || null, text]
         );
     } catch (error) {
         console.error('[DB] Failed to save group message:', error);
@@ -118,6 +78,9 @@ export async function saveGroupMessage(groupId, messageId, userId, username, fir
 
 // 📜 Получение истории сообщений группы
 export async function getGroupMessageHistory(groupId, limit = 100) {
+    const db = getDb();
+    if (!db) return [];
+    
     try {
         return await db.all(
             `SELECT username, first_name, text, created_at 
@@ -133,8 +96,11 @@ export async function getGroupMessageHistory(groupId, limit = 100) {
     }
 }
 
-// 🧹 Очистка старых сообщений (старше 7 дней)
+// 🧹 Очистка старых сообщений
 export async function cleanupOldMessages() {
+    const db = getDb();
+    if (!db) return;
+    
     try {
         await db.run(
             `DELETE FROM group_messages WHERE created_at < datetime('now', '-7 days')`
@@ -145,7 +111,12 @@ export async function cleanupOldMessages() {
     }
 }
 
-// Получение объекта БД для других модулей
+// Получение объекта БД (backward compat)
 export async function getDB() {
-    return db;
+    return getDb();
+}
+
+// Инициализация (backward compat, no-op since database/index.js handles it)
+export async function initDB() {
+    console.log('[DB] initDB called (noop, using database/index.js)');
 }
